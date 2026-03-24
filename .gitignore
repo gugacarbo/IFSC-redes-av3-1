@@ -1,0 +1,29 @@
+# Maven compiled files and build artifacts
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# Maven wrapper
+# https://maven.apache.org/wrapper/#usage-without-binary-jar
+.mvn/wrapper/maven-wrapper.jar
+
+# Eclipse m2e generated files
+.project
+.classpath
+.settings/
+.factorypath
+
+# IntelliJ IDEA specific files
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Operating System files
+.DS_Store
+*.log
