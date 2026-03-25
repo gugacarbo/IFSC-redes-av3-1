@@ -109,7 +109,7 @@ class AppConfigTest {
     }
 
     @Test
-    void testConfigFileFormat() throws IOException {
+    void testConfigFileFormat() throws IOException, ConfigurationException {
         Path configDir = tempDir.resolve(".udp_chat");
         Files.createDirectories(configDir);
         Path configFile = configDir.resolve("config.properties");
@@ -146,7 +146,7 @@ class AppConfigTest {
     }
 
     @Test
-    void testLoadConfig() throws IOException {
+    void testLoadConfig() throws IOException, ConfigurationException {
         Path configDir = tempDir.resolve(".udp_chat");
         Files.createDirectories(configDir);
         Path configFile = configDir.resolve("config.properties");
@@ -185,7 +185,7 @@ class AppConfigTest {
     }
 
     @Test
-    void testLoadNonExistentFile() {
+    void testLoadNonExistentFile() throws ConfigurationException {
         String originalHome = System.getProperty("user.home");
         try {
             System.setProperty("user.home", tempDir.toString());
@@ -197,8 +197,6 @@ class AppConfigTest {
             assertEquals(5000, config.getPort());
             assertEquals(1, config.getTtl());
 
-        } catch (IOException e) {
-            fail("Should not throw when config file does not exist");
         } finally {
             System.setProperty("user.home", originalHome);
         }

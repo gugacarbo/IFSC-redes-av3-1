@@ -150,7 +150,7 @@ class ChatControllerImplTest {
     }
 
     @Test
-    void testHandleChatMessage() {
+    void testHandleChatMessage() throws Exception {
         ChatMessage message = new ChatMessage("TestUser", "Hello world", MessageType.CHAT);
         message.setAddress(InetAddress.getByName("127.0.0.1"));
         message.setPort(5000);
