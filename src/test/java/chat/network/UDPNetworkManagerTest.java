@@ -1,10 +1,10 @@
 package chat.network;
 
+import chat.exception.NetworkException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.net.MulticastSocket;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,7 +57,7 @@ class UDPNetworkManagerTest {
     void testCreateSocket_InvalidMulticastAddress() {
         UDPNetworkManager manager = UDPNetworkManager.getInstance();
 
-        assertThrows(IOException.class, () -> {
+        assertThrows(NetworkException.class, () -> {
             manager.createSocket(5001, "192.168.1.1");
         });
     }
@@ -68,7 +68,7 @@ class UDPNetworkManagerTest {
 
         manager.createSocket(5001, "239.255.255.250");
 
-        assertThrows(IllegalStateException.class, () -> {
+        assertThrows(NetworkException.class, () -> {
             manager.createSocket(5002, "239.255.255.251");
         });
     }

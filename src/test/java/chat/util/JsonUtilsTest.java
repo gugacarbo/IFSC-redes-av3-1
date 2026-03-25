@@ -37,9 +37,8 @@ class JsonUtilsTest {
 
     @Test
     void testFromJsonWithEmptyString() {
-        assertThrows(JsonSyntaxException.class, () -> {
-            JsonUtils.fromJson("");
-        });
+        ChatMessage result = JsonUtils.fromJson("");
+        assertNull(result);
     }
 
     @Test

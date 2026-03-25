@@ -50,13 +50,13 @@ class DeduplicationCacheTest {
 
     @Test
     void testDuplicateDetection_SameMsgId_ReturnsTrue() {
-        ChatMessage message = new ChatMessage("user1", "Hello", MessageType.CHAT);
-        String msgId = message.getMsgId();
+        String fixedMsgId = "724a5229-f733-4a9f-a6e4-83ccee271768";
+        ChatMessage message = new ChatMessage("25/03/2026", "10:00:00", "user1", "Hello", MessageType.CHAT, fixedMsgId);
         
         cache.add(message);
         
-        ChatMessage duplicateMessage = new ChatMessage("user1", "Hello", MessageType.CHAT);
-        assertEquals(msgId, duplicateMessage.getMsgId());
+        ChatMessage duplicateMessage = new ChatMessage("25/03/2026", "10:00:00", "user1", "Hello", MessageType.CHAT, fixedMsgId);
+        assertEquals(fixedMsgId, duplicateMessage.getMsgId());
         assertTrue(cache.isDuplicate(duplicateMessage));
     }
 

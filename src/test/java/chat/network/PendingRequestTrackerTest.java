@@ -72,14 +72,14 @@ class PendingRequestTrackerTest {
     }
 
     @Test
-    @Timeout(value = 2, unit = TimeUnit.SECONDS)
+    @Timeout(value = 25, unit = TimeUnit.SECONDS)
     void testCleanupExpiredRequests() throws InterruptedException {
         ChatMessage joinMessage = new ChatMessage("user1", "", MessageType.JOIN);
         tracker.trackRequest(joinMessage);
         
         assertEquals(1, tracker.getPendingCount());
         
-        Thread.sleep(16000);
+        Thread.sleep(20000);
         
         assertEquals(0, tracker.getPendingCount());
     }

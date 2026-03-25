@@ -1,5 +1,6 @@
 package chat.config;
 
+import chat.exception.ConfigurationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
