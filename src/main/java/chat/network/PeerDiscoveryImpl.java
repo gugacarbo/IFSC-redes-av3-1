@@ -49,7 +49,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
     }
 
     private void stopJoinBroadcast() {
-        Logger.getInstance().info("JOIN broadcast period ended");
+        Logger.info("JOIN broadcast period ended");
     }
 
     private void broadcastJoin() {
@@ -60,7 +60,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
             Message joinMsg = new ChatMessage(username, "joining", MessageType.JOIN);
             sender.sendMessage(joinMsg);
         } catch (Exception e) {
-            Logger.getInstance().error("Failed to broadcast JOIN: " + e.getMessage());
+            Logger.error("Failed to broadcast JOIN: " + e.getMessage());
         }
     }
 
@@ -72,7 +72,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
             Message pingMsg = new ChatMessage(username, "ping", MessageType.PING);
             sender.sendMessage(pingMsg);
         } catch (Exception e) {
-            Logger.getInstance().error("Failed to broadcast PING: " + e.getMessage());
+            Logger.error("Failed to broadcast PING: " + e.getMessage());
         }
     }
 
@@ -82,7 +82,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
             if (!peer.getUsername().equals(username)) {
                 boolean timedOut = (now - peer.getLastSeen()) > PEER_TIMEOUT_MS;
                 if (timedOut) {
-                    Logger.getInstance().info("Peer timed out: " + peer.getUsername());
+                    Logger.info("Peer timed out: " + peer.getUsername());
                 }
                 return timedOut;
             }
@@ -114,7 +114,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
             Message pongMsg = new ChatMessage(username, "pong", MessageType.PONG);
             sender.sendMessage(pongMsg);
         } catch (Exception e) {
-            Logger.getInstance().error("Failed to send PONG: " + e.getMessage());
+            Logger.error("Failed to send PONG: " + e.getMessage());
         }
     }
 
@@ -131,7 +131,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
         if (peer == null) {
             peer = new Peer(peerUsername, address, port);
             peers.put(uniqueId, peer);
-            Logger.getInstance().info("Peer joined: " + peerUsername);
+            Logger.info("Peer joined: " + peerUsername);
         } else {
             peer.setLastSeen(System.currentTimeMillis());
             peer.setActive(true);
@@ -142,7 +142,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
         String uniqueId = address.getHostAddress() + ":" + port;
         Peer removed = peers.remove(uniqueId);
         if (removed != null) {
-            Logger.getInstance().info("Peer left: " + peerUsername);
+            Logger.info("Peer left: " + peerUsername);
         }
     }
 
@@ -172,7 +172,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
                 Message leaveMsg = new ChatMessage(username, "leaving", MessageType.LEAVE);
                 sender.sendMessage(leaveMsg);
             } catch (Exception e) {
-                Logger.getInstance().error("Failed to send LEAVE: " + e.getMessage());
+                Logger.error("Failed to send LEAVE: " + e.getMessage());
             }
         }
         scheduler.shutdown();

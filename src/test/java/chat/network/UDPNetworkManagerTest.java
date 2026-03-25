@@ -142,7 +142,7 @@ class UDPNetworkManagerTest {
 
     @Test
     void testThreadSafety_MultipleThreadsGetSameInstance() throws InterruptedException {
-        UDPNetworkManager[] instances = new UDPNetworkManager[10];
+        final UDPNetworkManager[] instances = new UDPNetworkManager[10];
         Thread[] threads = new Thread[10];
 
         for (int i = 0; i < 10; i++) {
