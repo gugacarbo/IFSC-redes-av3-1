@@ -297,8 +297,8 @@
             ],
             "priority": 15,
             "group": "E",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. ConfigPanel extends JDialog with GridBagLayout form fields (username, multicast group, port, TTL), buttons (Salvar, Cancelar, Testar Conexão), input validation (username regex, port range 1024-65535, multicast IP 224.0.0.0-239.255.255.255, TTL 1-255), modal behavior, and Testar Conexão with 3s timeout."
         },
         {
             "id": "US-016",
