@@ -318,8 +318,8 @@
             ],
             "priority": 16,
             "group": "F",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. ChatControllerImpl class managing ChatSession and UI interaction, MessageListener interface for UI notifications, PeerListener interface for peer list updates, sendMessage() for user input, connect() initiating session, disconnect() ending session, SwingUtilities.invokeLater() for all UI updates, event routing from Receiver to UI via Observer pattern, integration tests in ChatControllerImplTest. Maven compile passes."
         },
         {
             "id": "US-017",
