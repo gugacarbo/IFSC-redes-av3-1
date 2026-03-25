@@ -436,8 +436,8 @@
             ],
             "priority": 22,
             "group": "E",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. AboutDialog class in chat/view/AboutDialog with app name, version, description, MIT license, OK button. MainFrame with Ajuda menu. Maven compile passes."
         },
         {
             "id": "US-023",
