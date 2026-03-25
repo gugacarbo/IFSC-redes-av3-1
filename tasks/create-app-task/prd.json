@@ -192,8 +192,8 @@
             ],
             "priority": 10,
             "group": "D",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. Peer class with all required fields, getUniqueId(), equals(), hashCode(). PeerDiscoveryImpl with JOIN (2s/10s), PING (30s), timeout (90s), ConcurrentHashMap. 11 unit tests for Peer and PeerDiscovery."
         },
         {
             "id": "US-011",

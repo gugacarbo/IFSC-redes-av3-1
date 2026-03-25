@@ -1,5 +1,6 @@
 package chat.model;
 
+import java.net.InetAddress;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
@@ -12,6 +13,8 @@ public class ChatMessage implements Message {
     private final MessageType type;
     private final String msgId;
     private String originalMsgId;
+    private transient InetAddress address;
+    private transient int port;
 
     public ChatMessage(String username, String message, MessageType type) {
         this.date = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
@@ -86,5 +89,21 @@ public class ChatMessage implements Message {
 
     public void setOriginalMsgId(String originalMsgId) {
         this.originalMsgId = originalMsgId;
+    }
+
+    public InetAddress getAddress() {
+        return address;
+    }
+
+    public void setAddress(InetAddress address) {
+        this.address = address;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
     }
 }

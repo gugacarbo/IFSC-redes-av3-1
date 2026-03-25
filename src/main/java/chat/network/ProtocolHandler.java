@@ -49,6 +49,8 @@ public class ProtocolHandler {
         try {
             String json = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
             ChatMessage message = JsonUtils.fromJson(json);
+            message.setAddress(packet.getAddress());
+            message.setPort(packet.getPort());
 
             if (!validateMessage(message)) {
                 Logger.warn("Invalid message received, discarding");
@@ -118,6 +120,9 @@ public class ProtocolHandler {
                 if (livenessMonitor != null) {
                     livenessMonitor.handlePingMessage(message);
                 }
+                if (peerDiscovery != null) {
+                    peerDiscovery.handlePingMessage(message);
+                }
                 break;
             case PONG:
                 if (pendingRequestTracker != null) {
@@ -125,6 +130,9 @@ public class ProtocolHandler {
                 }
                 if (livenessMonitor != null) {
                     livenessMonitor.handlePongMessage(message);
+                }
+                if (peerDiscovery != null) {
+                    peerDiscovery.handlePongMessage(message);
                 }
                 break;
             case ACK:
