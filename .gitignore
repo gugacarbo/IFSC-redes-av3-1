@@ -27,3 +27,4 @@ buildNumber.properties
 # Operating System files
 .DS_Store
 *.log
+*.log*

@@ -5,6 +5,7 @@
 Este documento apresenta o planejamento completo para o desenvolvimento de uma aplicação de chat desktop em Java utilizando comunicação UDP multicast peer-to-peer com interface gráfica Swing.
 
 ### 1.1. Requisitos Principais
+
 - Interface gráfica (Swing)
 - Comunicação exclusivamente via UDP multicast
 - Formato JSON para mensagens
@@ -13,6 +14,7 @@ Este documento apresenta o planejamento completo para o desenvolvimento de uma a
 - Threads distintas para envio e recebimento
 
 ### 1.2. Restrições Técnicas
+
 - Java 17+
 - Maven como build tool
 - UDP multicast (não unicast direto)
@@ -24,6 +26,7 @@ Este documento apresenta o planejamento completo para o desenvolvimento de uma a
 ## 2. Arquitetura do Sistema
 
 ### 2.1. Visão Geral
+
 A arquitetura segue o padrão **MVC (Model-View-Controller)** adaptado para aplicações desktop:
 
 ```
@@ -86,15 +89,13 @@ chat/
 │   ├── MulticastSender.java         # Thread de envio
 │   ├── MulticastReceiver.java       # Thread de recebimento
 │   ├── PeerDiscovery.java           # Descoberta de peers
-│   ├── Packet.java                  # Wrapper para pacotes
 │   └── protocol/                    # Protocolo
-│       ├── MessageType.java         # Enum (CHAT, JOIN, LEAVE, PING, PONG)
+│       ├── MessageType.java         # Enum (CHAT, JOIN, LEAVE, PING, PONG, ACK)
 │       ├── ProtocolHandler.java     # Processador de protocolo
-│       └── HandshakeManager.java    # Gerenciador de handshake
+│       └── PendingRequestTracker.java # Gerenciador de retry (ACK tracking)
 ├── controller/                      # Controladores
-│   ├── ChatController.java          # Controlador principal
-│   ├── UIController.java            # Controlador da UI
-│   └── EventDispatcher.java         # Dispatcher de eventos
+│   ├── ChatController.java          # Controlador principal (MVC)
+│   └── EventDispatcher.java         # Dispatcher de eventos (opcional)
 ├── view/                            # Interface gráfica
 │   ├── MainFrame.java               # Janela principal (JFrame)
 │   ├── ChatPanel.java               # Painel de chat
@@ -119,6 +120,7 @@ chat/
 ### 3.2. Classes Principais (Descrição Detalhada)
 
 #### `Message.java` (Interface/Classe Abstrata)
+
 ```java
 public interface Message {
     String getDate();
@@ -132,48 +134,58 @@ public interface Message {
 ```
 
 #### `ChatMessage.java` (Implementação)
-- Campos: date, time, username, message
+
+- Campos: date, time, username, message, type, msgId (UUID)
 - Implementa Message
 - Construtores: vazio, com parâmetros
-- Métodos: toJson(), fromJson()
+- Métodos: toJson(), fromJson(), getMsgId()
+- Chave única para deduplicação: msgId (UUID)
 
 #### `ChatSession.java`
-- Estado atual: username, multicastGroup, port, isConnected
-- Lista de peers ativos
-- Histórico de mensagens (opcional, limitado)
+
+- Estado atual: username, multicastGroup, port, ttl, isConnected
+- Lista de peers ativos (thread-safe)
+- Fila de mensagens pendentes (outbox) com capacidade máxima 1000
 - Métodos: join(), leave(), send(), broadcast()
+- Registra shutdown hook para LEAVE graceful ao encerrar JVM
 
 #### `UDPNetworkManager.java` (Singleton)
+
 - Gerenciamento único do socket UDP
 - Configuração: porta, grupo multicast, TTL
 - Factory methods: createSender(), createReceiver()
 - shutdown()
 
 #### `MulticastSender.java` (Thread)
+
 - Envio assíncrono de mensagens
 - Queue de mensagens pendentes
 - Retransmissão em caso de falha (opcional)
 - Controle de taxa (throttling)
 
 #### `MulticastReceiver.java` (Thread)
+
 - Escuta contínua na porta multicast
 - Parse de pacotes recebidos
 - Filtragem de mensagens próprias
 - Delegação para ProtocolHandler
 
 #### `PeerDiscovery.java`
+
 - Broadcast de presença (JOIN messages)
 - Detecção de novos peers
 - Timeout para peers inativos
 - Manutenção da lista de peers
 
 #### `ProtocolHandler.java`
-- Processa diferentes MessageType (CHAT, JOIN, LEAVE, PING, PONG)
+
+- Processa diferentes MessageType (CHAT, JOIN, LEAVE, PING, PONG, ACK)
 - Filtragem de mensagens próprias (ignorar mensagens enviadas por si mesmo)
-- Ordenação de mensagens por timestamp (time)
-- Deduplicação por username + time
+- Ordenação de mensagens por receive timestamp (System.currentTimeMillis() ao receber)
+- Deduplicação por msgId (UUID) com cache LRU (1000 entradas, 60s TTL)
 - PING/PONG para liveness
-- Delegação para ChatController
+- ACK para confirmação de mensagens de controle (JOIN, PING)
+- Delegação para ChatController e PendingRequestTracker
 
 ---
 
@@ -197,64 +209,74 @@ Peer A (novo)                           Rede Multicast
 ```
 
 **Detalhes**:
+
 - Ao conectar, envia JOIN message a cada 2 segundos por 10 segundos
 - Peers recebem JOIN e adicionam à lista
 - Envia PING a cada 30s para manter presença
 - Remove peers após 3 PINGs não respondidos (90s timeout)
 
-### 4.2. Handshake
+### 4.2. Handshake e ACK
 
-**Decisão: Sem handshake explícito** - JOIN broadcast é suficiente
+**Decisão: ACK obrigatório para mensagens de controle**
 
-O sistema utiliza uma abordagem simplificada:
-1. Peer envia JOIN broadcast periodicamente (a cada 2s por 10s na inicialização)
-2. Peers existentes recebem JOIN e adicionam o novo peer à lista
-3. Não há ACK ou confirmação obrigatória
-4. O peer entra imediatamente no grupo e começa a enviar/receber mensagens
+O sistema utiliza ACK/PONG para garantir confiabilidade de mensagens críticas:
+
+1. **JOIN broadcast**: Peer envia JOIN a cada 2s por 10s na inicialização
+2. **ACK response**: Peers recebem JOIN e respondem com PONG (ACK)
+3. **Retry mechanism**: Se não houver ACK em 5s, reenvia JOIN (max 3 tentativas)
+4. **PendingRequestTracker**: Rastreia JOIN/PING pendentes com timestamps e retry count
+5. **Timeout cleanup**: Remove pending requests após 15s
 
 **Vantagens**:
-- Simplicidade de implementação
-- Sem delay para entrada no grupo
+
+- Garante que peers são descobertos mesmo com perda de pacotes
+- Confirmação explícita de recebimento
 - Adequado para pequenos grupos (2-10 peers)
 
 **Desvantagens**:
-- Possível duplicação temporária de peers (resolvida por IP:porta)
-- Sem confirmação de que todos receberam o JOIN
-- JOINs podem ser perdidos (best-effort)
+
+- Complexidade adicional (tracking de pending requests)
+- Overhead de tráfego (ACKs)
+- Necessidade de timeout e retry logic
 
 ### 4.3. Troca de Mensagens
 
-**Formato JSON Padrão** (conforme requisitos):
+**Formato JSON Padrão** (com msgId para deduplicação):
+
 ```json
 {
-  "type": "CHAT",
-  "date": "24/03/2025",
-  "time": "14:30:25",
-  "username": "Alice",
-  "message": "Olá a todos!"
+	"type": "CHAT",
+	"date": "24/03/2025",
+	"time": "14:30:25",
+	"username": "Alice",
+	"message": "Olá a todos!",
+	"msgId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 **Campos**:
-- `type`: CHAT, JOIN, LEAVE, PING, PONG (obrigatório para protocolo)
+
+- `type`: CHAT, JOIN, LEAVE, PING, PONG, ACK (obrigatório para protocolo)
 - `date`: data de envio (dd/MM/yyyy)
 - `time`: hora de envio (HH:mm:ss)
 - `username`: nome do usuário
-- `message`: conteúdo da mensagem (vazio para JOIN/LEAVE/PING/PONG)
-
-**Decisão: Sem campos adicionais** (seq, msgId)
+- `message`: conteúdo da mensagem (vazio para JOIN/LEAVE/PING/PONG/ACK)
+- `msgId`: UUID único para deduplicação (obrigatório)
 
 **Deduplicação**:
-- Baseada em `username + time` (combinação única)
-- Considerar tolerância de 1 segundo para mensagens do mesmo usuário
-- Cache de mensagens recentes: `Set<String>` com chave `username:time`
-- Tamanho do cache: 1000 entradas (LRU)
+
+- Baseada em `msgId` (UUID) - identificador global único
+- Cache LRU de 1000 entradas com TTL de 60 segundos
+- Thread-safe implementation (ConcurrentHashMap ou synchronized)
+- Limpeza automática de entries expiradas
 
 **Ordenação**:
-- Ordenar por `time` (campo do JSON)
-- Se mesmo timestamp, ordenar por `username` (alfabética)
-- Buffer de reordenação: até 5 segundos de atraso máximo
-- Se mensagem chegar com >5s de atraso, descartar
+
+- Ordenar por **receive timestamp** (System.currentTimeMillis() ao receber)
+- Se mesmo timestamp, ordenar por `msgId` (UUID)
+- Buffer de reordenação: máximo 100 mensagens
+- Delay máximo: 5 segundos (descartar mensagens mais antigas)
+- Overflow handling: quando buffer atinge 100, remover 20 mensagens mais antigas (FIFO)
 
 ### 4.4. Fluxo de Mensagem
 
@@ -350,6 +372,7 @@ ProtocolHandler Thread Pool (opcional)
 ### 6.1. Classes de Dados
 
 #### `ChatMessage`
+
 ```java
 public class ChatMessage implements Message {
     private String date;      // dd/MM/yyyy
@@ -376,6 +399,7 @@ public class ChatMessage implements Message {
 ```
 
 #### `Peer`
+
 ```java
 public class Peer {
     private String username;
@@ -404,18 +428,21 @@ public class Peer {
 - Simplifica a experiência (sem restrições) e adequado para pequenos grupos
 
 #### `ChatSession`
+
 ```java
 public class ChatSession {
     private String username;
     private String multicastGroup;  // ex: "224.0.0.1"
     private int port;
+    private int ttl;  // 1-255
     private boolean connected;
 
-    private List<Peer> peers;
-    private List<ChatMessage> history;  // limite: 1000 msgs
-    private Deque<ChatMessage> outbox;  // mensagens pendentes
+    private List<Peer> peers;  // thread-safe (ConcurrentHashMap)
+    private Deque<ChatMessage> outbox;  // capacity: 1000, overflow: discard oldest non-CHAT first
+    // Nota: history não persistido (session-only)
 
-    // Métodos: join(), leave(), send(), addPeer(), removePeer()
+    // Métodos: join(), leave(), send(), broadcast(), addPeer(), removePeer()
+    // Registra shutdown hook no join() para enviar LEAVE na saída
 }
 ```
 
@@ -424,10 +451,15 @@ public class ChatSession {
 **Decisão: Não manter histórico** - Apenas mensagens em tempo real
 
 - **Configurações**: `Properties` file em `~/.udp_chat/config.properties`
-  - Salva: username, multicastGroup, port, window size/position
+
+  - Salva: username, multicastGroup, port, ttl, windowWidth, windowHeight, windowX, windowY
+  - Formato: Java Properties (key=value)
+  - Valores padrão: port=5000, multicastGroup=224.0.0.1, ttl=1
+  - Validação: port 1024-65535, multicast IP 224.0.0.0-239.255.255.255, ttl 1-255
   - Carregado na inicialização
 
 - **Histórico de mensagens**: NÃO persistido
+
   - Mensagens são exibidas apenas durante a sessão atual
   - Não há buffer em memória além do necessário para ordenação
   - Ao desconectar/reconectar, histórico é limpo
@@ -479,6 +511,7 @@ public class ChatSession {
 ### 7.2. Componentes Swing
 
 #### `MainFrame` (extends JFrame)
+
 - Layout: BorderLayout
 - MenuBar: JMenuBar com JMenu
 - ToolBar: JToolBar com JButtons
@@ -486,17 +519,20 @@ public class ChatSession {
 - StatusBar: JLabel na SOUTH
 
 #### `ChatPanel` (extends JPanel)
+
 - Layout: BorderLayout
 - NORTH: JLabel "Chat"
 - CENTER: JScrollPane + JTextArea (não editável)
 - SOUTH: JPanel com JTextField + JButton "Enviar"
 
 #### `ConfigPanel` (extends JDialog)
+
 - Formulário com JLabels e JTextFields
 - Campos: Username, Multicast Group, Port
 - Botões: Salvar, Cancelar, Testar Conexão
 
 #### `UsersListPanel` (extends JPanel)
+
 - Layout: BoxLayout (Y_AXIS)
 - JList<Peer> com DefaultListModel
 - CellRenderer customizado para mostrar status
@@ -614,15 +650,18 @@ inputField.addActionListener(e -> sendButton.doClick());
 O sistema adota uma abordagem de "melhor esforço" (best-effort):
 
 1. **Sem retransmissão automática**:
+
    - Mensagens de chat podem se perder sem notificação
    - Adequado para chat casual onde perda ocasional é aceitável
 
 2. **Retry apenas para mensagens de controle**:
+
    - JOIN: retry até 3x com exponential backoff (1s, 2s, 4s)
    - LEAVE: tentativa única (não crítico)
    - PING/PONG: retry até 2x
 
 3. **Buffer de reordenação**:
+
    - Apesar de não haver retransmissão, mensagens podem chegar fora de ordem
    - Ordenação por timestamp (time) + username
    - Buffer limitado a 100 mensagens (PriorityQueue)
@@ -633,6 +672,7 @@ O sistema adota uma abordagem de "melhor esforço" (best-effort):
    - Cache de 1000 entradas (username:time)
 
 **Justificativa**:
+
 - Simplicidade de implementação
 - Adequado para pequenos grupos (2-10 peers) em LAN confiável
 - Overhead mínimo
@@ -643,12 +683,15 @@ O sistema adota uma abordagem de "melhor esforço" (best-effort):
 **Problema**: UDP não garante ordem de entrega
 
 **Solução**:
+
 1. **Ordenação por timestamp**:
+
    - Mensagens ordenadas pelo campo `time` (HH:mm:ss)
    - Se mesmo timestamp, ordenar por `username` (alfabética)
    - Sem sequence numbers
 
 2. **Buffer de Reordenação**:
+
 ```java
 class ReorderBuffer {
     private Queue<ChatMessage> buffer;  // PriorityQueue ordenado por time
@@ -715,6 +758,7 @@ class ReorderBuffer {
 - Se `username:time` já existe no cache, descarta mensagem
 
 **Justificativa**:
+
 - Simplifica o protocolo (sem campos adicionais)
 - Adequado para chat humano (difícil enviar duas msg no mesmo segundo)
 - Atende requisitos de deduplicação sem complexidade extra
@@ -739,6 +783,7 @@ Peer A                                    Peer B
 ```
 
 **Implementação**:
+
 - `Peer.lastSeen` (timestamp)
 - `PeerDiscovery` roda a cada 30s
 - Verifica `System.currentTimeMillis() - peer.lastSeen > 90000`
@@ -770,16 +815,19 @@ Peer A                                    Peer B
 ### 11.1. Limitações do UDP Multicast
 
 1. **TTL (Time To Live)**:
+
    - Limita propagação na rede
    - Padrão: 1 (mesma sub-rede)
    - Configurável: 1-255
 
 2. **Tamanho máximo de pacote**:
+
    - Ethernet MTU: 1500 bytes
    - UDP payload: ~1472 bytes
    - Mensagens JSON devem ser < 1400 bytes
 
 3. **Confiança**:
+
    - Sem garantia de entrega
    - Sem garantia de ordem
    - Pode duplicar
@@ -794,15 +842,18 @@ Peer A                                    Peer B
 **Decisão: Grupo pequeno (2-10 peers)** - Escalabilidade não é crítica
 
 1. **Limitar broadcast de JOIN**:
+
    - Apenas 5-10 JOINs na inicialização (período de 10s)
    - Após estabilizado, apenas PING a cada 30s (muito menor overhead)
    - Adequado para grupos pequenos
 
 2. **Filtragem na recepção**:
+
    - Ignorar mensagens de peers se a lista local > 20 (limite alto para 10 peers)
    - Sem histórico persistido, memória mínima
 
 3. **Otimização de banda**:
+
    - Não necessário compressão para mensagens de chat típicas (< 200 chars)
    - Sem ACKs (best-effort), overhead mínimo
 
@@ -812,6 +863,7 @@ Peer A                                    Peer B
    - Adequado para separar turmas ou tópicos
 
 **Considerações de segurança**:
+
 - **Decisão: Sem segurança** - Ambiente confiável (LAN)
 - Sem autenticação ou criptografia
 - Apenas para uso em redes locais controladas
@@ -822,6 +874,7 @@ Peer A                                    Peer B
 ## 12. Cronograma Estimado
 
 ### Fase 1: Fundação (3-4 dias)
+
 - [x] Setup do projeto Maven
 - [ ] Estrutura de pacotes
   - [ ] Testes
@@ -834,6 +887,7 @@ Peer A                                    Peer B
 **Entregável**: Projeto compilável com estrutura base
 
 ### Fase 2: Rede UDP Básica (3-4 dias)
+
 - [ ] `UDPNetworkManager` (singleton)
 - [ ] `MulticastSender` (envio simples)
 - [ ] `MulticastReceiver` (recepção simples)
@@ -843,6 +897,7 @@ Peer A                                    Peer B
 **Entregável**: Envio/recebimento de mensagens brutas
 
 ### Fase 3: Protocolo e Ordenação (3-5 dias)
+
 - [ ] `MessageType` enum (CHAT, JOIN, LEAVE, PING, PONG)
 - [ ] `ProtocolHandler` (processamento de tipos, filtragem)
 - [ ] `ReorderBuffer` (ordenção por timestamp)
@@ -852,6 +907,7 @@ Peer A                                    Peer B
 **Entregável**: Mensagens ordenadas e sem duplicação
 
 ### Fase 4: Descoberta de Peers (2-3 dias)
+
 - [ ] `Peer` class
 - [ ] `PeerDiscovery` (JOIN broadcast)
 - [ ] Detecção de peers inativos (PING/PONG)
@@ -861,6 +917,7 @@ Peer A                                    Peer B
 **Entregável**: Lista de peers dinâmica
 
 ### Fase 5: Interface Gráfica (4-5 dias)
+
 - [ ] `ChatPanel` (exibição de mensagens)
 - [ ] `ConfigPanel` (configuração)
 - [ ] `UsersListPanel` (lista de peers)
@@ -871,6 +928,7 @@ Peer A                                    Peer B
 **Entregável**: UI funcional completa
 
 ### Fase 6: Integração e Refinamento (3-4 dias)
+
 - [ ] Integrar todas as camadas
 - [ ] Teste de ponta-a-ponta
 - [ ] Tratamento de erros (UI feedback)
@@ -881,6 +939,7 @@ Peer A                                    Peer B
 **Entregável**: Aplicação funcional completa
 
 ### Fase 7: Testes e Documentação (2-3 dias)
+
 - [ ] Testes unitários (JUnit 5)
 - [ ] Testes de integração
 - [ ] Testes de carga (10+ peers)
@@ -891,18 +950,19 @@ Peer A                                    Peer B
 **Entregável**: Aplicação testada e documentada
 
 ### Cronograma Total
+
 - **Duração estimada**: 20-28 dias
 - **Caminho crítico**: Fase 2 → Fase 3 → Fase 5
 - **Buffer**: 20% para imprevistos
 
 ---
 
-
 ### 13. Recursos Avançados
 
 **Decisão: Apenas o básico** - Sem recursos adicionais
 
 **Escopo mínimo viável**:
+
 - [x] Chat multicast (todos recebem todas as mensagens)
 - [x] Lista de peers com status (online/offline)
 - [x] Configuração de username, grupo multicast, porta
@@ -910,6 +970,7 @@ Peer A                                    Peer B
 - [x] Interface Swing responsiva
 
 **Recursos explicitamente NÃO incluídos**:
+
 - [ ] Mensagens privadas (unicast)
 - [ ] Transferência de arquivos
 - [ ] Emojis/rich text (apenas texto plano)
@@ -918,6 +979,7 @@ Peer A                                    Peer B
 - [ ] Histórico persistente
 
 **Justificativa**:
+
 - Foco nos requisitos obrigatórios da especificação
 - Simplicidade e robustez
 - Cronograma realista (20-28 dias)
@@ -944,33 +1006,19 @@ Peer A                                    Peer B
 ### 15.1. Decisões Tomadas
 
 **Arquitetura e Tecnologia**:
+
 1. Java 17 com Maven
 2. Swing para GUI (leve, nativo)
 3. Padrão MVC
 4. Multicast UDP (não unicast)
 
-**Protocolo e Comunicação**:
-5. Sem handshake explícito - JOIN broadcast direto
-6. Best-effort (tolerar perdas) - sem retransmissão
-7. Sem ACKs para mensagens de chat
-8. Ordenação por timestamp (time) + username
-9. Deduplicação por username + time (tolerância 1s)
-10. PING/PONG para detecção de peers inativos (30s/90s timeout)
+**Protocolo e Comunicação**: 5. Sem handshake explícito - JOIN broadcast direto 6. Best-effort (tolerar perdas) - sem retransmissão 7. Sem ACKs para mensagens de chat 8. Ordenação por timestamp (time) + username 9. Deduplicação por username + time (tolerância 1s) 10. PING/PONG para detecção de peers inativos (30s/90s timeout)
 
-**Modelo de Dados**:
-11. Sem histórico persistente (apenas sessão atual)
-12. Username duplicados permitidos (diferenciar por IP:porta)
-13. Configurações salvas em properties file
+**Modelo de Dados**: 11. Sem histórico persistente (apenas sessão atual) 12. Username duplicados permitidos (diferenciar por IP:porta) 13. Configurações salvas em properties file
 
-**Segurança e Escala**:
-14. Sem segurança (ambiente LAN confiável)
-15. Grupo pequeno (2-10 peers) - foco em simplicidade
-16. Sem recursos adicionais (apenas chat básico)
+**Segurança e Escala**: 14. Sem segurança (ambiente LAN confiável) 15. Grupo pequeno (2-10 peers) - foco em simplicidade 16. Sem recursos adicionais (apenas chat básico)
 
-**Threading**:
-17. Sender e Receiver em threads separadas
-18. BlockingQueue para comunicação
-19. SwingUtilities.invokeLater() para UI updates
+**Threading**: 17. Sender e Receiver em threads separadas 18. BlockingQueue para comunicação 19. SwingUtilities.invokeLater() para UI updates
 
 ### 15.2. Pontos de Atenção
 
@@ -1006,19 +1054,21 @@ Peer A                                    Peer B
 | 7         | Testes e documentação                   | 2 dias      |
 | **Total** | **Aplicação funcional**                 | **18 dias** |
 
-*Nota: Cronograma otimista. Buffer recomendado: 20% (4 dias) → **22 dias úteis**.
+\*Nota: Cronograma otimista. Buffer recomendado: 20% (4 dias) → **22 dias úteis**.
 
 ---
 
 ## Apêndices
 
 ### A. Referências
+
 - Java Multicast API: `java.net.MulticastSocket`, `java.net.InetAddress`
 - Swing: `javax.swing.*`, `java.awt.*`
 - JSON: `com.fasterxml.jackson.databind.ObjectMapper` ou `com.google.gson.Gson`
 - Concorrência: `java.util.concurrent.*`
 
 ### B. Comandos Maven Úteis
+
 ```bash
 mvn clean compile          # Compilar
 mvn exec:java              # Executar
@@ -1027,6 +1077,7 @@ mvn package                # Criar JAR
 ```
 
 ### C. Portas e Grupos Multicast Sugeridos
+
 - Porta padrão: `5000` (configurável)
 - Grupo multicast: `224.0.0.1` (all hosts on subnet) ou `230.0.0.1`
 - TTL: `1` (local network)

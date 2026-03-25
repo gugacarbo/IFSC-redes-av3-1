@@ -13,7 +13,6 @@ import chat.view.UsersListPanel;
 
 import javax.swing.*;
 import java.net.InetAddress;
-import java.net.MulticastSocket;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -31,6 +30,7 @@ public class ChatControllerImpl implements ChatController {
     private DeduplicationCache deduplicationCache;
     private ExecutorService executor;
     private ScheduledExecutorService peerUpdateExecutor;
+    private java.net.MulticastSocket multicastSocket;
 
     private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
     private final List<PeerListener> peerListeners = new CopyOnWriteArrayList<>();
@@ -113,9 +113,9 @@ public class ChatControllerImpl implements ChatController {
             protocolHandler.setOwnCredentials(username, InetAddress.getLocalHost(), port);
 
             InetAddress multicastAddress = InetAddress.getByName(multicastGroup);
-            MulticastSocket socket = UDPNetworkManager.getInstance().getSocket();
+            multicastSocket = (java.net.MulticastSocket) UDPNetworkManager.getInstance().getSocket();
 
-            receiver = new MulticastReceiver(socket, protocolHandler, InetAddress.getLocalHost());
+            receiver = new MulticastReceiver(multicastSocket, protocolHandler, InetAddress.getLocalHost());
             receiver.start();
 
             peerDiscovery = new PeerDiscoveryImpl(username);
