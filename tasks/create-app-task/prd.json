@@ -233,8 +233,8 @@
             ],
             "priority": 12,
             "group": "E",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "MainFrame class extending JFrame with BorderLayout, MenuBar (Arquivo, Configuracoes, Ajuda), ToolBar with Conectar/Desconectar/Limpar buttons, JSplitPane for ChatPanel/UsersListPanel, StatusBar showing connection status and group info, window close handler with cleanup, save/restore window position/size from config, minimum window size 600x400, typecheck passes."
         },
         {
             "id": "US-013",

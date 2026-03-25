@@ -54,6 +54,10 @@ public class UsersListPanel extends JPanel {
         peerList.repaint();
     }
 
+    public void clear() {
+        listModel.clear();
+    }
+
     private class PeerCellRenderer implements ListCellRenderer<Peer> {
         @Override
         public Component getListCellRendererComponent(JList<? extends Peer> list, Peer peer, int index, boolean isSelected, boolean cellHasFocus) {

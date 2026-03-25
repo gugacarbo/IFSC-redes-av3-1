@@ -191,4 +191,8 @@ public class ChatPanel extends JPanel {
     public void clearInput() {
         inputField.setText("");
     }
+
+    public void clear() {
+        clearMessages();
+    }
 }
