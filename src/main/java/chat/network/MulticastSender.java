@@ -1,7 +1,9 @@
 package chat.network;
 
+import chat.exception.NetworkException;
 import chat.model.Message;
 import chat.model.MessageType;
+import chat.util.Logger;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -79,6 +81,7 @@ public class MulticastSender extends Thread {
                 socket.send(packet);
                 return;
             } catch (Exception e) {
+                Logger.error("Failed to send message: " + e.getMessage(), e);
                 if (i < attempts - 1 && isControlMessage) {
                     try {
                         long backoff = Math.min(INITIAL_BACKOFF_MS * (1L << i), MAX_BACKOFF_MS);

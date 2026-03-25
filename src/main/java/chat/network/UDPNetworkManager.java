@@ -1,5 +1,8 @@
 package chat.network;
 
+import chat.exception.NetworkException;
+import chat.util.Logger;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -31,9 +34,9 @@ public class UDPNetworkManager {
         return instance;
     }
 
-    public synchronized void createSocket(int port, String multicastGroup) throws IOException {
+    public synchronized void createSocket(int port, String multicastGroup) throws NetworkException {
         if (isActive) {
-            throw new IllegalStateException("Socket already active. Call shutdown() first.");
+            throw new NetworkException("Socket already active. Call shutdown() first.");
         }
 
         try {
@@ -41,16 +44,28 @@ public class UDPNetworkManager {
             this.multicastGroup = InetAddress.getByName(multicastGroup);
 
             if (!this.multicastGroup.isMulticastAddress()) {
-                throw new IOException("Invalid multicast address: " + multicastGroup);
+                throw new NetworkException("Endereço multicast inválido: " + multicastGroup);
             }
 
             this.socket = new MulticastSocket(port);
             this.socket.joinGroup(this.multicastGroup);
             this.isActive = true;
+            Logger.info("Multicast socket created on port " + port);
+        } catch (java.net.UnknownHostException e) {
+            this.socket = null;
+            this.isActive = false;
+            Logger.error("Unknown host: " + e.getMessage(), e);
+            throw new NetworkException("Não foi possível resolver o endereço: " + multicastGroup, e);
+        } catch (java.net.BindException e) {
+            this.socket = null;
+            this.isActive = false;
+            Logger.error("Port already in use: " + e.getMessage(), e);
+            throw new NetworkException("A porta " + port + " já está em uso. Tente outra porta.", e);
         } catch (IOException e) {
             this.socket = null;
             this.isActive = false;
-            throw new IOException("Failed to create multicast socket: " + e.getMessage(), e);
+            Logger.error("Failed to create socket: " + e.getMessage(), e);
+            throw new NetworkException("Erro ao criar socket de rede: " + e.getMessage(), e);
         }
     }
 
@@ -77,8 +92,9 @@ public class UDPNetworkManager {
                     socket.leaveGroup(multicastGroup);
                 }
                 socket.close();
+                Logger.info("Multicast socket closed successfully");
             } catch (IOException e) {
-                // Log error but continue cleanup
+                Logger.error("Error closing socket: " + e.getMessage(), e);
             }
         }
         socket = null;

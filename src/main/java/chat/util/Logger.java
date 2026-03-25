@@ -1,5 +1,7 @@
 package chat.util;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.LocalDate;
@@ -11,22 +13,49 @@ public class Logger {
         java.util.logging.Logger.getLogger("chat");
     
     private static final String logDirectory = "logs";
+    private static final int RETENTION_DAYS = 7;
     private static final DateTimeFormatter dateFormatter = 
         DateTimeFormatter.ofPattern("yyyy-MM-dd");
     
     static {
         try {
-            java.io.File logDir = new java.io.File(logDirectory);
+            File logDir = new File(logDirectory);
             if (!logDir.exists()) {
                 logDir.mkdirs();
             }
-            String logFile = logDirectory + "/chat_" + LocalDate.now().format(dateFormatter) + ".log";
-            java.util.logging.FileHandler fileHandler = new java.util.logging.FileHandler(logFile, true);
-            fileHandler.setFormatter(new java.util.logging.SimpleFormatter());
+            cleanOldLogs(logDir);
+            String logPattern = logDirectory + "/chat_%u_%g.log";
+            java.util.logging.FileHandler fileHandler = new java.util.logging.FileHandler(logPattern, true);
+            fileHandler.setFormatter(new java.util.logging.SimpleFormatter() {
+                @Override
+                public String format(java.util.logging.LogRecord lr) {
+                    return String.format("[%s] [%s] %s%n",
+                        LocalDate.now().format(dateFormatter),
+                        lr.getLevel().getName(),
+                        lr.getMessage());
+                }
+            });
             rootLogger.addHandler(fileHandler);
             rootLogger.setLevel(Level.ALL);
         } catch (Exception e) {
             System.err.println("Failed to initialize file logging: " + e.getMessage());
+        }
+    }
+    
+    private static void cleanOldLogs(File logDir) {
+        File[] oldLogs = logDir.listFiles((dir, name) -> name.startsWith("chat_") && name.endsWith(".log"));
+        if (oldLogs != null) {
+            LocalDate cutoff = LocalDate.now().minusDays(RETENTION_DAYS);
+            for (File log : oldLogs) {
+                String dateStr = log.getName().replace("chat_", "").replace(".log", "");
+                try {
+                    LocalDate logDate = LocalDate.parse(dateStr.substring(0, 10), dateFormatter);
+                    if (logDate.isBefore(cutoff)) {
+                        log.delete();
+                    }
+                } catch (Exception e) {
+                }
+            }
         }
     }
     

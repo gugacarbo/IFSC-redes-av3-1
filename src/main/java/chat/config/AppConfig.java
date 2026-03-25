@@ -1,5 +1,8 @@
 package chat.config;
 
+import chat.exception.ConfigurationException;
+import chat.util.Logger;
+
 import java.io.*;
 import java.nio.file.*;
 import java.util.Properties;
@@ -116,15 +119,19 @@ public class AppConfig {
         }
     }
 
-    public void load() throws IOException {
+    public void load() throws ConfigurationException {
         Path configPath = getConfigPath();
         if (!Files.exists(configPath)) {
+            Logger.info("Config file not found, using defaults");
             return;
         }
 
         Properties properties = new Properties();
         try (InputStream input = Files.newInputStream(configPath)) {
             properties.load(input);
+        } catch (IOException e) {
+            Logger.error("Failed to load config: " + e.getMessage(), e);
+            throw new ConfigurationException("Falha ao carregar configurações: " + e.getMessage(), e);
         }
 
         if (properties.containsKey(KEY_USERNAME)) {
@@ -151,11 +158,22 @@ public class AppConfig {
         if (properties.containsKey(KEY_WINDOW_Y)) {
             this.windowY = Integer.parseInt(properties.getProperty(KEY_WINDOW_Y));
         }
+        
+        if (!validate()) {
+            Logger.warn("Loaded config is invalid, using defaults");
+        } else {
+            Logger.info("Configuration loaded successfully");
+        }
     }
 
-    public void save() throws IOException {
+    public void save() throws ConfigurationException {
         Path configPath = getConfigPath();
-        ensureConfigDirExists(configPath);
+        try {
+            ensureConfigDirExists(configPath);
+        } catch (IOException e) {
+            Logger.error("Failed to create config directory: " + e.getMessage(), e);
+            throw new ConfigurationException("Falha ao criar diretório de configurações: " + e.getMessage(), e);
+        }
 
         Properties properties = new Properties();
         properties.setProperty(KEY_USERNAME, username);
@@ -169,6 +187,10 @@ public class AppConfig {
 
         try (OutputStream output = Files.newOutputStream(configPath)) {
             properties.store(output, "UDP Chat Configuration");
+            Logger.info("Configuration saved successfully");
+        } catch (IOException e) {
+            Logger.error("Failed to save config: " + e.getMessage(), e);
+            throw new ConfigurationException("Falha ao salvar configurações: " + e.getMessage(), e);
         }
     }
 

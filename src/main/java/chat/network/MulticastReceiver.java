@@ -1,5 +1,7 @@
 package chat.network;
 
+import chat.util.Logger;
+
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
@@ -47,11 +49,13 @@ public class MulticastReceiver extends Thread {
             } catch (java.net.SocketTimeoutException e) {
                 continue;
             } catch (java.net.SocketException e) {
+                Logger.error("Socket error in receiver: " + e.getMessage(), e);
                 if (running.get()) {
                     Thread.currentThread().interrupt();
                 }
                 break;
             } catch (Exception e) {
+                Logger.error("Error in receiver: " + e.getMessage(), e);
                 if (running.get()) {
                     Thread.currentThread().interrupt();
                 }
