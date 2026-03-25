@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.net.MulticastSocket;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -145,8 +146,9 @@ class UDPNetworkManagerTest {
         Thread[] threads = new Thread[10];
 
         for (int i = 0; i < 10; i++) {
+            final int index = i;
             threads[i] = new Thread(() -> {
-                instances[i] = UDPNetworkManager.getInstance();
+                instances[index] = UDPNetworkManager.getInstance();
             });
             threads[i].start();
         }

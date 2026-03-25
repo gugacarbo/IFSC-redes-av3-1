@@ -29,4 +29,16 @@ public class JsonUtils {
     public static ChatMessage createLeaveMessage(String username) {
         return new ChatMessage(username, "", MessageType.LEAVE);
     }
+
+    public static ChatMessage createPingMessage(String username) {
+        return new ChatMessage(username, "", MessageType.PING);
+    }
+
+    public static ChatMessage createPongMessage(String username, String originalMsgId) {
+        return new ChatMessage(username, "", MessageType.PONG, originalMsgId);
+    }
+
+    public static ChatMessage createAckMessage(String username, String originalMsgId) {
+        return new ChatMessage(username, "", MessageType.ACK, originalMsgId);
+    }
 }

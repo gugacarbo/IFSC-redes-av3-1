@@ -11,6 +11,7 @@ public class ChatMessage implements Message {
     private final String message;
     private final MessageType type;
     private final String msgId;
+    private String originalMsgId;
 
     public ChatMessage(String username, String message, MessageType type) {
         this.date = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
@@ -28,6 +29,16 @@ public class ChatMessage implements Message {
         this.message = message;
         this.type = type;
         this.msgId = msgId;
+    }
+
+    public ChatMessage(String username, String message, MessageType type, String originalMsgId) {
+        this.date = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        this.time = LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        this.username = username;
+        this.message = message;
+        this.type = type;
+        this.msgId = UUID.randomUUID().toString();
+        this.originalMsgId = originalMsgId;
     }
 
     @Override
@@ -67,5 +78,13 @@ public class ChatMessage implements Message {
 
     public String getUniqueKey() {
         return msgId;
+    }
+
+    public String getOriginalMsgId() {
+        return originalMsgId;
+    }
+
+    public void setOriginalMsgId(String originalMsgId) {
+        this.originalMsgId = originalMsgId;
     }
 }
