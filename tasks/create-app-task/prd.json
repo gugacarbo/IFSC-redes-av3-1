@@ -256,8 +256,8 @@
             ],
             "priority": 13,
             "group": "E",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. ChatPanel class with BorderLayout, JTextPane for message display, JTextField with 500 char limit, Enviar button, Enter key support, appendMessage() with styled formatting (#E3F2FD for own messages, gray italic for system), auto-scroll, clear button with confirmation dialog, disabled when disconnected, SwingUtilities.invokeLater() for updates."
         },
         {
             "id": "US-014",
@@ -276,8 +276,8 @@
             ],
             "priority": 14,
             "group": "E",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. UsersListPanel class extending JPanel with BoxLayout, JList<Peer> with DefaultListModel, custom CellRenderer showing \"username (IP:port)\" format with visual indicator for active/inactive peers (green/gray). addPeer(), removePeer(), updatePeerStatus() methods implemented with auto-refresh via repaint."
         },
         {
             "id": "US-015",
