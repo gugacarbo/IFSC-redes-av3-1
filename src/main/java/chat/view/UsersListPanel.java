@@ -1,11 +1,11 @@
 package chat.view;
 
+import chat.model.Peer;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JLabel;
@@ -16,8 +16,6 @@ import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-
-import chat.model.Peer;
 
 public class UsersListPanel extends JPanel {
   private final JList<Peer> peerList;
@@ -91,12 +89,13 @@ public class UsersListPanel extends JPanel {
       statusIndicator.setOpaque(true);
       statusIndicator.setBorder(new LineBorder(Color.DARK_GRAY, 1));
 
-      String displayText = peer.getUsername()
-          + " ("
-          + peer.getAddress().getHostAddress()
-          + ":"
-          + peer.getPort()
-          + ")";
+      String displayText =
+          peer.getUsername()
+              + " ("
+              + peer.getAddress().getHostAddress()
+              + ":"
+              + peer.getPort()
+              + ")";
       JLabel textLabel = new JLabel(displayText);
       textLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
 

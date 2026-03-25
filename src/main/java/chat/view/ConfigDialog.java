@@ -1,6 +1,7 @@
 package chat.view;
 
 import chat.config.AppConfig;
+import chat.network.UDPNetworkManager;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.InetAddress;
@@ -165,6 +166,16 @@ public class ConfigDialog extends JDialog {
 
     String multicastGroup = multicastGroupField.getText().trim();
     int port = Integer.parseInt(portField.getText().trim());
+
+    UDPNetworkManager nm = UDPNetworkManager.getInstance();
+    if (nm.isActive() && nm.getPort() == port) {
+      JOptionPane.showMessageDialog(
+          this,
+          "O aplicativo ja esta conectado nesta porta. Desconecte primeiro para testar.",
+          "Teste de Conexao",
+          JOptionPane.WARNING_MESSAGE);
+      return;
+    }
 
     testConnectionButton = (JButton) e.getSource();
     testConnectionButton.setEnabled(false);

@@ -41,7 +41,6 @@ public class MainFrame extends JFrame {
 
   public MainFrame() {
     this.config = new AppConfig();
-    loadConfig();
 
     setTitle("UDP Chat P2P");
     setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -49,6 +48,7 @@ public class MainFrame extends JFrame {
 
     initLookAndFeel();
     initComponents();
+    loadConfig();
     restoreWindowState();
 
     addWindowListener(
