@@ -112,8 +112,8 @@
             ],
             "priority": 6,
             "group": "B",
-            "passes": false,
-            "notes": ""
+            "passes": true,
+            "notes": "Implementation complete. MulticastReceiver extends Thread with socket.receive() loop, UTF-8 decoding, self-message filtering via address comparison, delegation to ProtocolHandler, proper exception handling for timeouts/socket errors, and graceful shutdown with interrupt handling. 11 unit tests covering message parsing, address filtering, and handler delegation."
         },
         {
             "id": "US-007",
