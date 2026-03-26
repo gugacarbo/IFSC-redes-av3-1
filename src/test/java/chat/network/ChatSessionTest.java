@@ -2,8 +2,6 @@ package chat.network;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import chat.model.Peer;
-import java.net.InetAddress;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +30,6 @@ class ChatSessionTest {
     assertEquals("224.0.0.1", session.getMulticastGroup());
     assertEquals(5000, session.getPort());
     assertEquals(1, session.getTtl());
-    assertTrue(session.getActivePeers().isEmpty());
   }
 
   @Test
@@ -46,7 +43,6 @@ class ChatSessionTest {
     session.join();
     session.leave();
     assertFalse(session.isConnected());
-    assertTrue(session.getActivePeers().isEmpty());
   }
 
   @Test
@@ -71,32 +67,6 @@ class ChatSessionTest {
     session.join();
     session.send("Test message");
     assertFalse(session.getOutboundMessages().isEmpty());
-  }
-
-  @Test
-  void testPeerManagement() throws Exception {
-    session.join();
-    Peer peer = new Peer("otheruser", InetAddress.getByName("192.168.1.1"), 5000);
-
-    session.addPeer(peer);
-    assertEquals(1, session.getActivePeers().size());
-    assertEquals(peer, session.getPeer(peer.getUniqueId()));
-
-    session.removePeer(peer);
-    assertTrue(session.getActivePeers().isEmpty());
-  }
-
-  @Test
-  void testUpdatePeer() throws Exception {
-    session.join();
-    Peer peer = new Peer("otheruser", InetAddress.getByName("192.168.1.1"), 5000);
-
-    session.addPeer(peer);
-
-    Peer updatedPeer = new Peer("newname", InetAddress.getByName("192.168.1.1"), 5000);
-    session.updatePeer(updatedPeer);
-
-    assertEquals("newname", session.getPeer(peer.getUniqueId()).getUsername());
   }
 
   @Test

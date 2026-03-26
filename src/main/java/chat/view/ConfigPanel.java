@@ -220,7 +220,7 @@ public class ConfigPanel extends JDialog {
 
           ChatMessage testMsg =
               new ChatMessage(usernameField.getText().trim(), "TEST", MessageType.CHAT);
-          String json = JsonUtils.toJson(testMsg);
+          String json = JsonUtils.toWireJson(testMsg);
           byte[] buffer = json.getBytes("UTF-8");
 
           DatagramPacket sendPacket = new DatagramPacket(buffer, buffer.length, group, port);

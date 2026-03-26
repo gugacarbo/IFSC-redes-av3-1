@@ -3,33 +3,22 @@ package chat.controller;
 import chat.config.AppConfig;
 import chat.model.ChatMessage;
 import chat.model.MessageType;
-import chat.model.Peer;
-import chat.network.*;
-import chat.util.DeduplicationCache;
+import chat.network.ChatSession;
+import chat.network.MulticastReceiver;
+import chat.network.ProtocolHandler;
+import chat.network.UDPNetworkManager;
 import chat.util.Logger;
-import chat.util.ReorderBuffer;
 import chat.view.ChatPanel;
 import chat.view.UsersListPanel;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import javax.swing.*;
+import javax.swing.SwingUtilities;
 
 public class ChatControllerImpl implements ChatController {
   private ChatSession session;
   private ProtocolHandler protocolHandler;
   private MulticastReceiver receiver;
-  private PeerDiscoveryImpl peerDiscovery;
-  private PendingRequestTracker pendingRequestTracker;
-  private ReorderBuffer reorderBuffer;
-  private DeduplicationCache deduplicationCache;
-  private ExecutorService executor;
-  private ScheduledExecutorService peerUpdateExecutor;
-  private ScheduledFuture<?> peerUpdateTask;
   private java.net.MulticastSocket multicastSocket;
 
   private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
@@ -43,8 +32,6 @@ public class ChatControllerImpl implements ChatController {
   private int ttl;
 
   public ChatControllerImpl() {
-    this.executor = Executors.newSingleThreadExecutor();
-    this.peerUpdateExecutor = Executors.newSingleThreadScheduledExecutor();
     loadConfig();
   }
 
@@ -105,37 +92,8 @@ public class ChatControllerImpl implements ChatController {
       session = new ChatSession(username, multicastGroup, port, ttl);
       session.join();
 
-      reorderBuffer = new ReorderBuffer();
-      deduplicationCache = new DeduplicationCache();
-      pendingRequestTracker = new PendingRequestTracker();
-      peerDiscovery = new PeerDiscoveryImpl(username);
-      peerDiscovery.setListener(
-          new PeerDiscoveryListener() {
-            @Override
-            public void onPeerJoined(Peer peer) {
-              notifyPeerJoined(peer);
-            }
-
-            @Override
-            public void onPeerLeft(Peer peer) {
-              notifyPeerLeft(peer);
-            }
-
-            @Override
-            public void onPeerUpdated(Peer peer) {
-              notifyPeerUpdated(peer);
-            }
-
-            @Override
-            public void onPeerListChanged(List<Peer> peers) {
-              notifyPeerListChanged(peers);
-            }
-          });
-
       protocolHandler = new ProtocolHandler();
       protocolHandler.setChatController(this);
-      protocolHandler.setPeerDiscovery(peerDiscovery);
-      protocolHandler.setPendingRequestTracker(pendingRequestTracker);
       protocolHandler.setOwnCredentials(username, InetAddress.getLocalHost(), port);
 
       multicastSocket = (java.net.MulticastSocket) UDPNetworkManager.getInstance().getSocket();
@@ -143,9 +101,6 @@ public class ChatControllerImpl implements ChatController {
       receiver =
           new MulticastReceiver(multicastSocket, protocolHandler, InetAddress.getLocalHost());
       receiver.start();
-
-      peerDiscovery.setSender(session.getSender());
-      peerDiscovery.start();
 
       SwingUtilities.invokeLater(
           () -> {
@@ -170,49 +125,12 @@ public class ChatControllerImpl implements ChatController {
     }
   }
 
-  private void updatePeerList() {
-    if (peerDiscovery == null || !peerDiscovery.isRunning()) {
-      return;
-    }
-
-    List<Peer> currentPeers = new CopyOnWriteArrayList<>(peerDiscovery.getPeers());
-
-    SwingUtilities.invokeLater(
-        () -> {
-          if (usersListPanel != null) {
-            usersListPanel.clear();
-            for (Peer peer : currentPeers) {
-              usersListPanel.addPeer(peer);
-            }
-          }
-        });
-
-    for (PeerListener listener : peerListeners) {
-      listener.onPeerListChanged(currentPeers);
-    }
-  }
-
   public void disconnect() {
     if (session == null || !session.isConnected()) {
       return;
     }
 
     try {
-      if (peerDiscovery != null) {
-        peerDiscovery.shutdown();
-        peerDiscovery = null;
-      }
-
-      if (peerUpdateTask != null) {
-        peerUpdateTask.cancel(true);
-        peerUpdateTask = null;
-      }
-
-      if (pendingRequestTracker != null) {
-        pendingRequestTracker.shutdown();
-        pendingRequestTracker = null;
-      }
-
       if (receiver != null) {
         receiver.shutdown();
         receiver = null;
@@ -263,22 +181,7 @@ public class ChatControllerImpl implements ChatController {
 
   @Override
   public void handleChatMessage(ChatMessage message) {
-    if (deduplicationCache != null && deduplicationCache.isDuplicate(message)) {
-      return;
-    }
-
-    if (reorderBuffer != null) {
-      reorderBuffer.add(message);
-      List<ChatMessage> deliverable = reorderBuffer.deliver();
-      for (ChatMessage msg : deliverable) {
-        if (deduplicationCache != null) {
-          deduplicationCache.add(msg);
-        }
-        notifyMessageReceived(msg);
-      }
-    } else {
-      notifyMessageReceived(message);
-    }
+    notifyMessageReceived(message);
   }
 
   private void notifyMessageReceived(ChatMessage message) {
@@ -317,57 +220,6 @@ public class ChatControllerImpl implements ChatController {
     }
   }
 
-  private void notifyPeerJoined(Peer peer) {
-    SwingUtilities.invokeLater(
-        () -> {
-          if (usersListPanel != null) {
-            usersListPanel.addPeer(peer);
-          }
-        });
-    for (PeerListener listener : peerListeners) {
-      listener.onPeerJoined(peer);
-    }
-  }
-
-  private void notifyPeerLeft(Peer peer) {
-    SwingUtilities.invokeLater(
-        () -> {
-          if (usersListPanel != null) {
-            usersListPanel.removePeer(peer);
-          }
-        });
-    for (PeerListener listener : peerListeners) {
-      listener.onPeerLeft(peer);
-    }
-  }
-
-  private void notifyPeerUpdated(Peer peer) {
-    SwingUtilities.invokeLater(
-        () -> {
-          if (usersListPanel != null) {
-            usersListPanel.updatePeerStatus(peer);
-          }
-        });
-    for (PeerListener listener : peerListeners) {
-      listener.onPeerUpdated(peer);
-    }
-  }
-
-  private void notifyPeerListChanged(List<Peer> peers) {
-    SwingUtilities.invokeLater(
-        () -> {
-          if (usersListPanel != null) {
-            usersListPanel.clear();
-            for (Peer peer : peers) {
-              usersListPanel.addPeer(peer);
-            }
-          }
-        });
-    for (PeerListener listener : peerListeners) {
-      listener.onPeerListChanged(peers);
-    }
-  }
-
   public boolean isConnected() {
     return session != null && session.isConnected();
   }
@@ -378,13 +230,5 @@ public class ChatControllerImpl implements ChatController {
 
   public void shutdown() {
     disconnect();
-    if (executor != null) {
-      executor.shutdown();
-      executor = null;
-    }
-    if (peerUpdateExecutor != null) {
-      peerUpdateExecutor.shutdown();
-      peerUpdateExecutor = null;
-    }
   }
 }

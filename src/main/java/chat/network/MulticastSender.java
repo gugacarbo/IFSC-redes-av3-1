@@ -1,7 +1,7 @@
 package chat.network;
 
 import chat.model.Message;
-import chat.model.MessageType;
+import chat.util.JsonUtils;
 import chat.util.Logger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -14,9 +14,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MulticastSender extends Thread {
   private static final int MAX_QUEUE_CAPACITY = 1000;
-  private static final int MAX_RETRIES = 3;
-  private static final long INITIAL_BACKOFF_MS = 100;
-  private static final long MAX_BACKOFF_MS = 1000;
 
   private final BlockingQueue<Message> messageQueue;
   private final DatagramSocket socket;
@@ -38,13 +35,7 @@ public class MulticastSender extends Thread {
     }
 
     while (messageQueue.size() >= MAX_QUEUE_CAPACITY) {
-      Message oldest = messageQueue.peek();
-      if (oldest != null && oldest.getType() != MessageType.CHAT) {
-        messageQueue.poll();
-      } else {
-        messageQueue.poll();
-        break;
-      }
+      messageQueue.poll();
     }
 
     if (running.get()) {
@@ -69,32 +60,13 @@ public class MulticastSender extends Thread {
   }
 
   private void sendWithRetry(Message msg) {
-    boolean isControlMessage = isControlMessage(msg.getType());
-    int attempts = isControlMessage ? MAX_RETRIES : 1;
-
-    for (int i = 0; i < attempts; i++) {
-      try {
-        byte[] data = msg.toJson().getBytes(StandardCharsets.UTF_8);
-        DatagramPacket packet = new DatagramPacket(data, data.length, multicastAddress, port);
-        socket.send(packet);
-        return;
-      } catch (Exception e) {
-        Logger.error("Failed to send message: " + e.getMessage(), e);
-        if (i < attempts - 1 && isControlMessage) {
-          try {
-            long backoff = Math.min(INITIAL_BACKOFF_MS * (1L << i), MAX_BACKOFF_MS);
-            Thread.sleep(backoff);
-          } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            return;
-          }
-        }
-      }
+    try {
+      byte[] data = JsonUtils.toWireJson(msg).getBytes(StandardCharsets.UTF_8);
+      DatagramPacket packet = new DatagramPacket(data, data.length, multicastAddress, port);
+      socket.send(packet);
+    } catch (Exception e) {
+      Logger.error("Failed to send message: " + e.getMessage(), e);
     }
-  }
-
-  private boolean isControlMessage(MessageType type) {
-    return type == MessageType.JOIN || type == MessageType.PING || type == MessageType.ACK;
   }
 
   public void shutdown() {
@@ -106,7 +78,7 @@ public class MulticastSender extends Thread {
     Message msg;
     while ((msg = messageQueue.poll()) != null) {
       try {
-        byte[] data = msg.toJson().getBytes(StandardCharsets.UTF_8);
+        byte[] data = JsonUtils.toWireJson(msg).getBytes(StandardCharsets.UTF_8);
         DatagramPacket packet = new DatagramPacket(data, data.length, multicastAddress, port);
         socket.send(packet);
       } catch (Exception e) {

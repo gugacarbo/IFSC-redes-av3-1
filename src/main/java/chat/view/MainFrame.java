@@ -20,7 +20,6 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JSplitPane;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -31,7 +30,6 @@ public class MainFrame extends JFrame {
 
   private final AppConfig config;
   private ChatPanel chatPanel;
-  private UsersListPanel usersListPanel;
   private JLabel errorLabel;
   private JLabel statusLabel;
   private JLabel groupInfoLabel;
@@ -40,7 +38,6 @@ public class MainFrame extends JFrame {
   private JButton clearButton;
 
   private final ChatControllerImpl controller;
-  private boolean connected = false;
 
   public MainFrame() {
     this.config = new AppConfig();
@@ -131,9 +128,7 @@ public class MainFrame extends JFrame {
     chatPanel = new ChatPanel();
     chatPanel.setOnSendMessageListener(this::sendMessage);
 
-    usersListPanel = new UsersListPanel();
     controller.setChatPanel(chatPanel);
-    controller.setUsersListPanel(usersListPanel);
     controller.addMessageListener(
         new MessageListener() {
           @Override
@@ -148,11 +143,7 @@ public class MainFrame extends JFrame {
           }
         });
 
-    JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chatPanel, usersListPanel);
-    splitPane.setDividerLocation(500);
-    splitPane.setResizeWeight(1.0);
-
-    add(splitPane, BorderLayout.CENTER);
+    add(chatPanel, BorderLayout.CENTER);
   }
 
   private void initStatusBar() {
@@ -227,7 +218,7 @@ public class MainFrame extends JFrame {
   }
 
   private void connect() {
-    if (connected || controller.isConnected()) {
+    if (controller.isConnected()) {
       return;
     }
 
@@ -243,10 +234,8 @@ public class MainFrame extends JFrame {
 
     try {
       controller.connect();
-      connected = controller.isConnected();
-      updateConnectionState(connected);
+      updateConnectionState(controller.isConnected());
     } catch (Exception e) {
-      connected = false;
       updateConnectionState(false);
       JOptionPane.showMessageDialog(
           this,
@@ -259,7 +248,7 @@ public class MainFrame extends JFrame {
 
   private void sendMessage() {
     String text = chatPanel.getInputText().trim();
-    if (!text.isEmpty() && connected) {
+    if (!text.isEmpty() && controller.isConnected()) {
       controller.sendMessage(text);
       chatPanel.clearInput();
     }
@@ -267,8 +256,7 @@ public class MainFrame extends JFrame {
 
   private void disconnect() {
     controller.disconnect();
-    connected = false;
-    updateConnectionState(false);
+    updateConnectionState(controller.isConnected());
   }
 
   private void updateConnectionState(boolean connected) {
@@ -282,7 +270,6 @@ public class MainFrame extends JFrame {
     } else {
       statusLabel.setText("Desconectado");
       statusLabel.setForeground(Color.RED);
-      usersListPanel.clear();
     }
   }
 
@@ -321,7 +308,7 @@ public class MainFrame extends JFrame {
   }
 
   private void handleWindowClose() {
-    if (connected) {
+    if (controller.isConnected()) {
       int result =
           JOptionPane.showConfirmDialog(
               this,

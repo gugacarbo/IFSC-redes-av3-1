@@ -14,7 +14,6 @@ public class MulticastReceiver extends Thread {
 
   private final MulticastSocket socket;
   private final ProtocolHandler protocolHandler;
-  private final InetAddress selfAddress;
   private final AtomicBoolean running;
 
   public MulticastReceiver(
@@ -22,7 +21,6 @@ public class MulticastReceiver extends Thread {
     this.socket = Objects.requireNonNull(socket, "Socket cannot be null");
     this.protocolHandler =
         Objects.requireNonNull(protocolHandler, "ProtocolHandler cannot be null");
-    this.selfAddress = selfAddress;
     this.running = new AtomicBoolean(true);
     setDaemon(true);
   }
@@ -42,16 +40,12 @@ public class MulticastReceiver extends Thread {
     while (running.get()) {
       try {
         socket.receive(packet);
-        if (isSelfMessage(packet)) {
-          resetPacket(packet, buffer);
-          continue;
-        }
         protocolHandler.process(packet);
       } catch (java.net.SocketTimeoutException e) {
         continue;
       } catch (java.net.SocketException e) {
-        Logger.error("Socket error in receiver: " + e.getMessage(), e);
         if (running.get()) {
+          Logger.error("Socket error in receiver: " + e.getMessage(), e);
           Thread.currentThread().interrupt();
         }
         break;
@@ -64,14 +58,6 @@ public class MulticastReceiver extends Thread {
       }
       resetPacket(packet, buffer);
     }
-  }
-
-  private boolean isSelfMessage(DatagramPacket packet) {
-    if (selfAddress == null) {
-      return false;
-    }
-    InetAddress senderAddress = packet.getAddress();
-    return selfAddress.equals(senderAddress);
   }
 
   private void resetPacket(DatagramPacket packet, byte[] buffer) {

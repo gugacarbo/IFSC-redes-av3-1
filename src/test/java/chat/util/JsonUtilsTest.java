@@ -45,34 +45,6 @@ class JsonUtilsTest {
   }
 
   @Test
-  void testCreateChatMessage() {
-    ChatMessage msg = JsonUtils.createChatMessage("Bob", "Test message");
-
-    assertEquals("Bob", msg.getUsername());
-    assertEquals("Test message", msg.getContent());
-    assertEquals(MessageType.CHAT, msg.getType());
-    assertNotNull(msg.getMsgId());
-  }
-
-  @Test
-  void testCreateJoinMessage() {
-    ChatMessage msg = JsonUtils.createJoinMessage("Charlie");
-
-    assertEquals("Charlie", msg.getUsername());
-    assertEquals("", msg.getContent());
-    assertEquals(MessageType.JOIN, msg.getType());
-  }
-
-  @Test
-  void testCreateLeaveMessage() {
-    ChatMessage msg = JsonUtils.createLeaveMessage("Dave");
-
-    assertEquals("Dave", msg.getUsername());
-    assertEquals("", msg.getContent());
-    assertEquals(MessageType.LEAVE, msg.getType());
-  }
-
-  @Test
   void testRoundTripPreservesMsgId() {
     ChatMessage original = new ChatMessage("Eve", "Secret message", MessageType.CHAT);
     String json = JsonUtils.toJson(original);
@@ -90,5 +62,19 @@ class JsonUtilsTest {
 
       assertEquals(type, parsed.getType(), "Failed for type: " + type);
     }
+  }
+
+  @Test
+  void testToWireJsonUsesMinimalLayout() {
+    ChatMessage msg = new ChatMessage("Alice", "Hello world", MessageType.CHAT);
+
+    String json = JsonUtils.toWireJson(msg);
+
+    assertTrue(json.contains("\"date\""));
+    assertTrue(json.contains("\"time\""));
+    assertTrue(json.contains("\"username\""));
+    assertTrue(json.contains("\"message\""));
+    assertFalse(json.contains("type"));
+    assertFalse(json.contains("msgId"));
   }
 }

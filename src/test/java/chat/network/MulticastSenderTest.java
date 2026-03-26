@@ -45,7 +45,7 @@ class MulticastSenderTest {
   }
 
   @Test
-  void testOverflowPolicyDiscardsOldestNonChatFirst() throws Exception {
+  void testOverflowPolicyKeepsQueueBounded() throws Exception {
     for (int i = 0; i < 1000; i++) {
       sender.sendMessage(new ChatMessage("user", "Message " + i, MessageType.JOIN));
     }
@@ -87,20 +87,16 @@ class MulticastSenderTest {
   }
 
   @Test
-  void testControlMessageRetryLogic() throws Exception {
+  void testFailedSendDoesNotRetry() throws Exception {
     Message msg = new ChatMessage("user", "Join", MessageType.JOIN);
     sender.sendMessage(msg);
 
-    doThrow(new RuntimeException("Network error"))
-        .doThrow(new RuntimeException("Network error"))
-        .doNothing()
-        .when(socket)
-        .send(any(DatagramPacket.class));
+    doThrow(new RuntimeException("Network error")).when(socket).send(any(DatagramPacket.class));
 
     sender.start();
-    sender.join(5000);
+    sender.join(2000);
 
-    verify(socket, times(3)).send(any(DatagramPacket.class));
+    verify(socket, times(1)).send(any(DatagramPacket.class));
   }
 
   @Test

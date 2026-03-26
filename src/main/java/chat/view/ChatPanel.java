@@ -18,6 +18,7 @@ public class ChatPanel extends JPanel {
   private final JButton sendButton;
   private final JButton clearButton;
   private final Document messageDocument;
+  private Runnable onSendMessageListener;
   private String currentUsername;
   private boolean connected;
 
@@ -64,15 +65,15 @@ public class ChatPanel extends JPanel {
         new java.awt.event.KeyAdapter() {
           @Override
           public void keyPressed(KeyEvent e) {
-            if (e.getKeyCode() == KeyEvent.VK_ENTER && connected) {
-              sendMessage();
+            if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+              dispatchSendMessage();
             }
           }
         });
 
     sendButton = new JButton("Enviar");
     sendButton.setEnabled(false);
-    sendButton.addActionListener(e -> sendMessage());
+    sendButton.addActionListener(e -> dispatchSendMessage());
 
     clearButton = new JButton("Limpar");
     clearButton.addActionListener(e -> clearChat());
@@ -87,24 +88,19 @@ public class ChatPanel extends JPanel {
     add(inputPanel, BorderLayout.SOUTH);
   }
 
-  private void sendMessage() {
-    String text = inputField.getText().trim();
-    if (!text.isEmpty() && connected) {
-      inputField.setText("");
-    }
+  public void setOnSendMessageListener(Runnable listener) {
+    this.onSendMessageListener = listener;
   }
 
-  public void setOnSendMessageListener(Runnable listener) {
-    sendButton.addActionListener(e -> listener.run());
-    inputField.addKeyListener(
-        new java.awt.event.KeyAdapter() {
-          @Override
-          public void keyPressed(KeyEvent e) {
-            if (e.getKeyCode() == KeyEvent.VK_ENTER && connected) {
-              listener.run();
-            }
-          }
-        });
+  private void dispatchSendMessage() {
+    if (!connected || onSendMessageListener == null) {
+      return;
+    }
+
+    String text = inputField.getText().trim();
+    if (!text.isEmpty()) {
+      onSendMessageListener.run();
+    }
   }
 
   private void clearChat() {

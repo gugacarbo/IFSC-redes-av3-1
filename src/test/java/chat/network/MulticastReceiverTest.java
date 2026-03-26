@@ -9,6 +9,8 @@ import chat.util.JsonUtils;
 import com.google.gson.JsonSyntaxException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +18,7 @@ class MulticastReceiverTest {
 
   @Test
   void testParseMessageValidJson() {
-    ChatMessage originalMsg = JsonUtils.createChatMessage("Alice", "Hello world");
+    ChatMessage originalMsg = new ChatMessage("Alice", "Hello world", MessageType.CHAT);
     String json = originalMsg.toJson();
     byte[] data = json.getBytes(StandardCharsets.UTF_8);
     DatagramPacket packet = new DatagramPacket(data, data.length);
@@ -27,7 +29,7 @@ class MulticastReceiverTest {
 
   @Test
   void testParseMessageEmptyContent() {
-    ChatMessage originalMsg = JsonUtils.createJoinMessage("Bob");
+    ChatMessage originalMsg = new ChatMessage("Bob", "", MessageType.CHAT);
     String json = originalMsg.toJson();
     byte[] data = json.getBytes(StandardCharsets.UTF_8);
     DatagramPacket packet = new DatagramPacket(data, data.length);
@@ -76,7 +78,7 @@ class MulticastReceiverTest {
     ProtocolHandler mockHandler = mock(ProtocolHandler.class);
     InetAddress selfAddress = InetAddress.getLocalHost();
 
-    ChatMessage selfMsg = JsonUtils.createChatMessage("Self", "My message");
+    ChatMessage selfMsg = new ChatMessage("Self", "My message", MessageType.CHAT);
     String json = selfMsg.toJson();
     byte[] data = json.getBytes(StandardCharsets.UTF_8);
 
@@ -91,7 +93,7 @@ class MulticastReceiverTest {
     byte[] data = new byte[1024];
     DatagramPacket packet = new DatagramPacket(data, data.length, selfAddress, 5000);
 
-    String json = JsonUtils.createChatMessage("Alice", "Test").toJson();
+    String json = new ChatMessage("Alice", "Test", MessageType.CHAT).toJson();
     packet.setData(json.getBytes(StandardCharsets.UTF_8));
     packet.setLength(json.length());
 
@@ -114,13 +116,42 @@ class MulticastReceiverTest {
     ProtocolHandler mockHandler = mock(ProtocolHandler.class);
     InetAddress selfAddress = InetAddress.getLocalHost();
 
-    ChatMessage msg = JsonUtils.createChatMessage("Alice", "Test message");
+    ChatMessage msg = new ChatMessage("Alice", "Test message", MessageType.CHAT);
     String json = msg.toJson();
     byte[] data = json.getBytes(StandardCharsets.UTF_8);
     DatagramPacket packet = new DatagramPacket(data, data.length, selfAddress, 5000);
 
     mockHandler.process(packet);
     verify(mockHandler, times(1)).process(packet);
+  }
+
+  @Test
+  void testReceiverProcessesPacketFromSameHostAddress() throws Exception {
+    MulticastSocket socket = mock(MulticastSocket.class);
+    ProtocolHandler protocolHandler = mock(ProtocolHandler.class);
+    InetAddress selfAddress = InetAddress.getByName("127.0.0.1");
+
+    ChatMessage message = new ChatMessage("other-user", "hello", MessageType.CHAT);
+    byte[] payload = JsonUtils.toWireJson(message).getBytes(StandardCharsets.UTF_8);
+
+    doAnswer(
+            invocation -> {
+              DatagramPacket packet = invocation.getArgument(0);
+              packet.setData(payload);
+              packet.setLength(payload.length);
+              packet.setAddress(selfAddress);
+              packet.setPort(5000);
+              return null;
+            })
+        .doThrow(new SocketException("socket closed"))
+        .when(socket)
+        .receive(any(DatagramPacket.class));
+
+    MulticastReceiver receiver = new MulticastReceiver(socket, protocolHandler, selfAddress);
+    receiver.start();
+    receiver.join(1500);
+
+    verify(protocolHandler, times(1)).process(any(DatagramPacket.class));
   }
 
   @Test
