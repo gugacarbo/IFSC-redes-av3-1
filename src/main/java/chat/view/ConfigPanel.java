@@ -1,18 +1,35 @@
 package chat.view;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MulticastSocket;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.SwingWorker;
+
 import chat.config.AppConfig;
 import chat.model.ChatMessage;
 import chat.model.MessageType;
 import chat.util.JsonUtils;
 import chat.util.Logger;
-import java.awt.*;
-import java.net.DatagramPacket;
-import java.net.InetAddress;
-import java.net.MulticastSocket;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
-import javax.swing.*;
 
 public class ConfigPanel extends JDialog {
 
@@ -199,7 +216,7 @@ public class ConfigPanel extends JDialog {
     int port = Integer.parseInt(portField.getText().trim());
     int ttl = Integer.parseInt(ttlField.getText().trim());
 
-    setError("Testando conexão...");
+    setError("Testando conexao...");
     setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
     new SwingWorker<>() {
@@ -208,37 +225,38 @@ public class ConfigPanel extends JDialog {
 
       @Override
       protected Void doInBackground() {
-        AtomicBoolean received = new AtomicBoolean(false);
-        AtomicReference<String> error = new AtomicReference<>();
-
-        try (MulticastSocket socket = new MulticastSocket()) {
+        try (MulticastSocket socket = new MulticastSocket(port)) {
           socket.setSoTimeout(1000);
           socket.setTimeToLive(ttl);
 
           InetAddress group = InetAddress.getByName(multicastGroup);
-          socket.joinGroup(group);
+          socket.joinGroup(new InetSocketAddress(group, 0), null);
 
           ChatMessage testMsg =
               new ChatMessage(usernameField.getText().trim(), "TEST", MessageType.CHAT);
           String json = JsonUtils.toWireJson(testMsg);
-          byte[] buffer = json.getBytes("UTF-8");
+          byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
 
           DatagramPacket sendPacket = new DatagramPacket(buffer, buffer.length, group, port);
           socket.send(sendPacket);
 
           long startTime = System.currentTimeMillis();
           byte[] receiveBuffer = new byte[1024];
+          boolean received = false;
 
           while (System.currentTimeMillis() - startTime < TEST_TIMEOUT_MS) {
             try {
-              DatagramPacket receivePacket =
-                  new DatagramPacket(receiveBuffer, receiveBuffer.length);
+              DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
               socket.receive(receivePacket);
 
               String receivedMsg =
-                  new String(receivePacket.getData(), 0, receivePacket.getLength(), "UTF-8");
+                  new String(
+                      receivePacket.getData(),
+                      0,
+                      receivePacket.getLength(),
+                      StandardCharsets.UTF_8);
               if (receivedMsg.contains("TEST")) {
-                received.set(true);
+                received = true;
                 break;
               }
             } catch (java.net.SocketTimeoutException e) {
@@ -246,21 +264,13 @@ public class ConfigPanel extends JDialog {
             }
           }
 
-          socket.leaveGroup(group);
-
-          if (received.get()) {
-            success = true;
-            resultMessage = "Conexão bem-sucedida!";
-          } else {
-            success = true;
-            resultMessage = "Socket criado com sucesso (sem echo)";
-          }
-
+          success = true;
+          resultMessage =
+              received ? "Conexao bem-sucedida!" : "Socket criado com sucesso (sem echo)";
         } catch (Exception e) {
           success = false;
           resultMessage = "Erro: " + e.getMessage();
-          error.set(e.getMessage());
-          Logger.error("Teste de conexão falhou", e);
+          Logger.error("Teste de conexao falhou", e);
         }
         return null;
       }
@@ -271,7 +281,7 @@ public class ConfigPanel extends JDialog {
         if (success) {
           clearError();
           JOptionPane.showMessageDialog(
-              ConfigPanel.this, resultMessage, "Testar Conexão", JOptionPane.INFORMATION_MESSAGE);
+              ConfigPanel.this, resultMessage, "Testar Conexao", JOptionPane.INFORMATION_MESSAGE);
         } else {
           setError(resultMessage);
         }

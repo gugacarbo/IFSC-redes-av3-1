@@ -2,7 +2,6 @@ package chat.network;
 
 import chat.util.Logger;
 import java.net.DatagramPacket;
-import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -17,7 +16,7 @@ public class MulticastReceiver extends Thread {
   private final AtomicBoolean running;
 
   public MulticastReceiver(
-      MulticastSocket socket, ProtocolHandler protocolHandler, InetAddress selfAddress) {
+      MulticastSocket socket, ProtocolHandler protocolHandler) {
     this.socket = Objects.requireNonNull(socket, "Socket cannot be null");
     this.protocolHandler =
         Objects.requireNonNull(protocolHandler, "ProtocolHandler cannot be null");

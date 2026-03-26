@@ -1,5 +1,11 @@
 package chat.controller;
 
+import java.net.InetAddress;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import javax.swing.SwingUtilities;
+
 import chat.config.AppConfig;
 import chat.model.ChatMessage;
 import chat.model.MessageType;
@@ -10,16 +16,11 @@ import chat.network.UDPNetworkManager;
 import chat.util.Logger;
 import chat.view.ChatPanel;
 import chat.view.UsersListPanel;
-import java.net.InetAddress;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import javax.swing.SwingUtilities;
 
 public class ChatControllerImpl implements ChatController {
   private ChatSession session;
   private ProtocolHandler protocolHandler;
   private MulticastReceiver receiver;
-  private java.net.MulticastSocket multicastSocket;
 
   private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
   private final List<PeerListener> peerListeners = new CopyOnWriteArrayList<>();
@@ -96,10 +97,9 @@ public class ChatControllerImpl implements ChatController {
       protocolHandler.setChatController(this);
       protocolHandler.setOwnCredentials(username, InetAddress.getLocalHost(), port);
 
-      multicastSocket = (java.net.MulticastSocket) UDPNetworkManager.getInstance().getSocket();
+      java.net.MulticastSocket multicastSocket = (java.net.MulticastSocket) UDPNetworkManager.getInstance().getSocket();
 
-      receiver =
-          new MulticastReceiver(multicastSocket, protocolHandler, InetAddress.getLocalHost());
+      receiver = new MulticastReceiver(multicastSocket, protocolHandler);
       receiver.start();
 
       SwingUtilities.invokeLater(

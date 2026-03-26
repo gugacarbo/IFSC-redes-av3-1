@@ -142,7 +142,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
     if (peerUsername.equals(username)) {
       return;
     }
-    String uniqueId = address.getHostAddress() + ":" + port;
+    String uniqueId = Peer.buildUniqueId(peerUsername, address, port);
     Peer peer = peers.get(uniqueId);
     if (peer == null) {
       peer = new Peer(peerUsername, address, port);
@@ -157,7 +157,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
   }
 
   private void removePeer(String peerUsername, InetAddress address, int port) {
-    String uniqueId = address.getHostAddress() + ":" + port;
+    String uniqueId = Peer.buildUniqueId(peerUsername, address, port);
     Peer removed = peers.remove(uniqueId);
     if (removed != null) {
       Logger.info("Peer left: " + peerUsername);
@@ -166,7 +166,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
   }
 
   private void updatePeerActivity(String peerUsername, InetAddress address, int port) {
-    String uniqueId = address.getHostAddress() + ":" + port;
+    String uniqueId = Peer.buildUniqueId(peerUsername, address, port);
     Peer peer = peers.get(uniqueId);
     if (peer != null) {
       peer.setLastSeen(System.currentTimeMillis());

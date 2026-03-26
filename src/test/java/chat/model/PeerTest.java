@@ -30,13 +30,13 @@ class PeerTest {
   @Test
   void testGetUniqueId() {
     String uniqueId = peer.getUniqueId();
-    assertEquals("192.168.1.1:5000", uniqueId);
+    assertEquals("testuser@192.168.1.1:5000", uniqueId);
   }
 
   @Test
-  void testEquals_SameUniqueId() throws UnknownHostException {
+  void testEquals_DifferentUsernameSameAddressAndPort() throws UnknownHostException {
     Peer peer2 = new Peer("differentuser", testAddress, 5000);
-    assertEquals(peer, peer2);
+    assertNotEquals(peer, peer2);
   }
 
   @Test
@@ -57,9 +57,9 @@ class PeerTest {
   }
 
   @Test
-  void testHashCode_SameUniqueId() throws UnknownHostException {
+  void testHashCode_DifferentUsernameSameAddressAndPort() throws UnknownHostException {
     Peer peer2 = new Peer("differentuser", testAddress, 5000);
-    assertEquals(peer.hashCode(), peer2.hashCode());
+    assertNotEquals(peer.hashCode(), peer2.hashCode());
   }
 
   @Test

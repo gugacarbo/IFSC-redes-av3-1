@@ -47,7 +47,13 @@ public class Peer {
   }
 
   public String getUniqueId() {
-    return address.getHostAddress() + ":" + port;
+    return buildUniqueId(username, address, port);
+  }
+
+  public static String buildUniqueId(String username, InetAddress address, int port) {
+    String hostAddress = address != null ? address.getHostAddress() : "unknown";
+    String safeUsername = username != null ? username : "unknown";
+    return safeUsername + "@" + hostAddress + ":" + port;
   }
 
   @Override

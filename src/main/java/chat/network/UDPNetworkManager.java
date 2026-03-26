@@ -4,6 +4,7 @@ import chat.exception.NetworkException;
 import chat.util.Logger;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 
 public class UDPNetworkManager {
@@ -45,7 +46,7 @@ public class UDPNetworkManager {
       }
 
       this.socket = new MulticastSocket(port);
-      this.socket.joinGroup(this.multicastGroup);
+      this.socket.joinGroup(new InetSocketAddress(this.multicastGroup, 0), null);
       this.isActive = true;
       Logger.info("Multicast socket created on port " + port);
     } catch (java.net.UnknownHostException e) {
@@ -86,7 +87,7 @@ public class UDPNetworkManager {
     if (socket != null && isActive) {
       try {
         if (multicastGroup != null) {
-          socket.leaveGroup(multicastGroup);
+          socket.leaveGroup(new InetSocketAddress(multicastGroup, 0), null);
         }
         socket.close();
         Logger.info("Multicast socket closed successfully");

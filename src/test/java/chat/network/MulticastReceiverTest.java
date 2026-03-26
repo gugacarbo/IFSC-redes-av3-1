@@ -147,7 +147,7 @@ class MulticastReceiverTest {
         .when(socket)
         .receive(any(DatagramPacket.class));
 
-    MulticastReceiver receiver = new MulticastReceiver(socket, protocolHandler, selfAddress);
+    MulticastReceiver receiver = new MulticastReceiver(socket, protocolHandler);
     receiver.start();
     receiver.join(1500);
 

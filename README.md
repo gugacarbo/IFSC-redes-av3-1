@@ -20,22 +20,6 @@ Java UDP Chat P2P Application
 ./mvnw clean verify
 ```
 
-### Code Quality
-
-```bash
-# Verificar formatação (Spotless)
-./mvnw spotless:check
-
-# Aplicar formatação automaticamente
-./mvnw spotless:apply
-
-# Verificar cobertura de código
-./mvnw verify
-
-# Gerar relatório de cobertura (HTML)
-./mvnw jacoco:report
-```
-
 ### Relatórios
 
 ```bash
@@ -46,6 +30,7 @@ start target/site/jacoco/index.html
 start target/surefire-reports/index.html
 ```
 
+
 ### Execução
 
 ```bash
@@ -53,18 +38,18 @@ start target/surefire-reports/index.html
 ./mvnw exec:java -Dexec.mainClass=chat.Main
 ```
 
-## Configuração
+## Configura??o
 
 - **Porta multicast**: 5000
-- **Formato**: Google Java Format 1.19.2
-- **Cobertura mínima**: 0% (configurável em `pom.xml`)
+- **Formato**: livre (sem verifica??o autom?tica)
+- **Cobertura m?nima**: 0% (configur?vel em `pom.xml`)
 
 # Requisitos
 
 Com base nos conceitos apresentados em aula e utilizando a linguagem de programação de sua
 preferência crie uma aplicação de bate papo (chat) contemplando os seguintes requisitos técnicos:
 
-- deve ter interface gráfica (GUI – Graphical User Interface);
+- deve ter interface gráfica (GUI - Graphical User Interface);
 - somente uma aplicação será desenvolvida, sendo esta capaz de enviar e receber mensagens;
   - obs.: para o envio e recebimento de mensagens de forma simultânea, a mesma porta de comunicação
     pode ser utilizada, porém o envio e recebimento devem ser tratados em threads distintas;

@@ -1,12 +1,27 @@
 package chat.view;
 
-import chat.config.AppConfig;
-import chat.network.UDPNetworkManager;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
-import javax.swing.*;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+
+import chat.config.AppConfig;
+import chat.network.UDPNetworkManager;
 
 public class ConfigDialog extends JDialog {
   private final AppConfig config;
@@ -177,25 +192,22 @@ public class ConfigDialog extends JDialog {
       return;
     }
 
-    testConnectionButton = (JButton) e.getSource();
+    JButton testConnectionButton = (JButton) e.getSource();
     testConnectionButton.setEnabled(false);
     testConnectionButton.setText("Testando...");
 
     new Thread(
             () -> {
-              MulticastSocket testSocket = null;
               boolean success = false;
               String message;
 
-              try {
-                testSocket = new MulticastSocket(port);
+              try (MulticastSocket testSocket = new MulticastSocket(port)) {
                 InetAddress address = InetAddress.getByName(multicastGroup);
-                testSocket.joinGroup(address);
+                testSocket.joinGroup(new InetSocketAddress(address, 0), null);
                 testSocket.setSoTimeout(3000);
 
-                byte[] testData = "TEST".getBytes();
-                var testPacket =
-                    new java.net.DatagramPacket(testData, testData.length, address, port);
+                byte[] testData = "TEST".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                var testPacket = new java.net.DatagramPacket(testData, testData.length, address, port);
                 testSocket.send(testPacket);
 
                 byte[] buffer = new byte[1024];
@@ -208,13 +220,6 @@ public class ConfigDialog extends JDialog {
                 message = "Conexao bem sucedida (timeout ao esperar resposta)";
               } catch (Exception ex) {
                 message = "Falha na conexao: " + ex.getMessage();
-              } finally {
-                if (testSocket != null) {
-                  try {
-                    testSocket.close();
-                  } catch (Exception ignored) {
-                  }
-                }
               }
 
               final boolean finalSuccess = success;
@@ -240,8 +245,6 @@ public class ConfigDialog extends JDialog {
             })
         .start();
   }
-
-  private JButton testConnectionButton;
 
   private void showError(String message) {
     JOptionPane.showMessageDialog(this, message, "Erro de Validacao", JOptionPane.ERROR_MESSAGE);

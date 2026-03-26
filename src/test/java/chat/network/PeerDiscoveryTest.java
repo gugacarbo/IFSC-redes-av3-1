@@ -48,7 +48,7 @@ class PeerDiscoveryTest {
     peerDiscovery.handleJoinMessage(joinMessage);
 
     assertEquals(1, peerDiscovery.getPeerCount());
-    Peer peer = peerDiscovery.getPeer("192.168.1.100:5000");
+    Peer peer = peerDiscovery.getPeer(Peer.buildUniqueId("peer1", address, 5000));
     assertNotNull(peer);
     assertEquals("peer1", peer.getUsername());
     assertTrue(peer.isActive());
@@ -115,6 +115,26 @@ class PeerDiscoveryTest {
   }
 
   @Test
+  void testHandleJoinMessage_SameIpDifferentUsernameCreatesDistinctPeers()
+      throws UnknownHostException {
+    InetAddress address = InetAddress.getByName("192.168.1.100");
+
+    ChatMessage join1 = new ChatMessage("peer1", "joining", MessageType.JOIN);
+    join1.setAddress(address);
+    join1.setPort(5000);
+    peerDiscovery.handleJoinMessage(join1);
+
+    ChatMessage join2 = new ChatMessage("peer2", "joining", MessageType.JOIN);
+    join2.setAddress(address);
+    join2.setPort(5000);
+    peerDiscovery.handleJoinMessage(join2);
+
+    assertEquals(2, peerDiscovery.getPeerCount());
+    assertNotNull(peerDiscovery.getPeer(Peer.buildUniqueId("peer1", address, 5000)));
+    assertNotNull(peerDiscovery.getPeer(Peer.buildUniqueId("peer2", address, 5000)));
+  }
+
+  @Test
   void testHandleLeaveMessage() throws UnknownHostException {
     InetAddress address = InetAddress.getByName("192.168.1.100");
     ChatMessage joinMessage = new ChatMessage("peer1", "joining", MessageType.JOIN);
@@ -140,7 +160,7 @@ class PeerDiscoveryTest {
     joinMessage.setPort(5000);
     peerDiscovery.handleJoinMessage(joinMessage);
 
-    Peer peer = peerDiscovery.getPeer("192.168.1.100:5000");
+    Peer peer = peerDiscovery.getPeer(Peer.buildUniqueId("peer1", address, 5000));
     long originalLastSeen = peer.getLastSeen();
 
     try {
