@@ -28,6 +28,7 @@ public class PendingRequestTracker {
 
   public void trackRequest(ChatMessage message) {
     if (message.getType() == MessageType.JOIN || message.getType() == MessageType.PING) {
+      cleanupExpiredRequests();
       pendingRequests.put(
           message.getMsgId(), new PendingRequest(message, System.currentTimeMillis()));
     }
@@ -46,10 +47,12 @@ public class PendingRequestTracker {
   }
 
   public boolean hasPendingRequest(String msgId) {
+    cleanupExpiredRequests();
     return pendingRequests.containsKey(msgId);
   }
 
   public int getPendingCount() {
+    cleanupExpiredRequests();
     return pendingRequests.size();
   }
 

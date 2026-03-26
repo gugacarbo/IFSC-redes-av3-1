@@ -16,7 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
 import javax.swing.*;
 
 public class ChatControllerImpl implements ChatController {
@@ -29,6 +29,7 @@ public class ChatControllerImpl implements ChatController {
   private DeduplicationCache deduplicationCache;
   private ExecutorService executor;
   private ScheduledExecutorService peerUpdateExecutor;
+  private ScheduledFuture<?> peerUpdateTask;
   private java.net.MulticastSocket multicastSocket;
 
   private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
@@ -106,29 +107,45 @@ public class ChatControllerImpl implements ChatController {
 
       reorderBuffer = new ReorderBuffer();
       deduplicationCache = new DeduplicationCache();
+      pendingRequestTracker = new PendingRequestTracker();
+      peerDiscovery = new PeerDiscoveryImpl(username);
+      peerDiscovery.setListener(
+          new PeerDiscoveryListener() {
+            @Override
+            public void onPeerJoined(Peer peer) {
+              notifyPeerJoined(peer);
+            }
+
+            @Override
+            public void onPeerLeft(Peer peer) {
+              notifyPeerLeft(peer);
+            }
+
+            @Override
+            public void onPeerUpdated(Peer peer) {
+              notifyPeerUpdated(peer);
+            }
+
+            @Override
+            public void onPeerListChanged(List<Peer> peers) {
+              notifyPeerListChanged(peers);
+            }
+          });
 
       protocolHandler = new ProtocolHandler();
       protocolHandler.setChatController(this);
+      protocolHandler.setPeerDiscovery(peerDiscovery);
+      protocolHandler.setPendingRequestTracker(pendingRequestTracker);
       protocolHandler.setOwnCredentials(username, InetAddress.getLocalHost(), port);
 
-      InetAddress multicastAddress = InetAddress.getByName(multicastGroup);
       multicastSocket = (java.net.MulticastSocket) UDPNetworkManager.getInstance().getSocket();
 
       receiver =
           new MulticastReceiver(multicastSocket, protocolHandler, InetAddress.getLocalHost());
       receiver.start();
 
-      peerDiscovery = new PeerDiscoveryImpl(username);
-      MulticastSender sender =
-          session.getOutboundMessages().isEmpty() ? null : getSenderFromSession();
-      if (sender != null) {
-        peerDiscovery.setSender(sender);
-      }
+      peerDiscovery.setSender(session.getSender());
       peerDiscovery.start();
-
-      pendingRequestTracker = new PendingRequestTracker();
-
-      peerUpdateExecutor.scheduleAtFixedRate(this::updatePeerList, 1, 3, TimeUnit.SECONDS);
 
       SwingUtilities.invokeLater(
           () -> {
@@ -150,17 +167,6 @@ public class ChatControllerImpl implements ChatController {
       Logger.error("Failed to connect", e);
       notifySystemMessage("Erro ao conectar: " + e.getMessage());
       disconnect();
-    }
-  }
-
-  private MulticastSender getSenderFromSession() {
-    try {
-      java.lang.reflect.Field senderField = ChatSession.class.getDeclaredField("sender");
-      senderField.setAccessible(true);
-      return (MulticastSender) senderField.get(session);
-    } catch (Exception e) {
-      Logger.warn("Could not get sender from session");
-      return null;
     }
   }
 
@@ -195,6 +201,16 @@ public class ChatControllerImpl implements ChatController {
       if (peerDiscovery != null) {
         peerDiscovery.shutdown();
         peerDiscovery = null;
+      }
+
+      if (peerUpdateTask != null) {
+        peerUpdateTask.cancel(true);
+        peerUpdateTask = null;
+      }
+
+      if (pendingRequestTracker != null) {
+        pendingRequestTracker.shutdown();
+        pendingRequestTracker = null;
       }
 
       if (receiver != null) {

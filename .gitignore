@@ -12,11 +12,15 @@ buildNumber.properties
 # https://maven.apache.org/wrapper/#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
 
+# Maven local cache
+.maven/
+
 # Eclipse m2e generated files
 .project
 .classpath
 .settings/
 .factorypath
+node_modules/
 
 # IntelliJ IDEA specific files
 .idea/
@@ -28,3 +32,11 @@ buildNumber.properties
 .DS_Store
 *.log
 *.log*
+
+# Java compiled files
+*.class
+*.jar
+
+# OpenCode tasks
+
+

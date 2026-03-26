@@ -47,13 +47,14 @@ public class ProtocolHandler {
     try {
       String json = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
       ChatMessage message = JsonUtils.fromJson(json);
-      message.setAddress(packet.getAddress());
-      message.setPort(packet.getPort());
 
       if (!validateMessage(message)) {
         Logger.warn("Invalid message received, discarding");
         return;
       }
+
+      message.setAddress(packet.getAddress());
+      message.setPort(packet.getPort());
 
       if (isOwnMessage(message, packet.getAddress(), packet.getPort())) {
         Logger.debug("Ignoring own message from " + message.getUsername());

@@ -1,14 +1,16 @@
 package chat.view;
 
 import chat.config.AppConfig;
-import chat.network.ChatSession;
-import chat.network.UDPNetworkManager;
+import chat.controller.ChatControllerImpl;
+import chat.controller.MessageListener;
+import chat.model.ChatMessage;
 import chat.util.Logger;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.Locale;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -30,17 +32,19 @@ public class MainFrame extends JFrame {
   private final AppConfig config;
   private ChatPanel chatPanel;
   private UsersListPanel usersListPanel;
+  private JLabel errorLabel;
   private JLabel statusLabel;
   private JLabel groupInfoLabel;
   private JButton connectButton;
   private JButton disconnectButton;
   private JButton clearButton;
 
-  private ChatSession chatSession;
+  private final ChatControllerImpl controller;
   private boolean connected = false;
 
   public MainFrame() {
     this.config = new AppConfig();
+    this.controller = new ChatControllerImpl();
 
     setTitle("UDP Chat P2P");
     setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -128,6 +132,21 @@ public class MainFrame extends JFrame {
     chatPanel.setOnSendMessageListener(this::sendMessage);
 
     usersListPanel = new UsersListPanel();
+    controller.setChatPanel(chatPanel);
+    controller.setUsersListPanel(usersListPanel);
+    controller.addMessageListener(
+        new MessageListener() {
+          @Override
+          public void onMessageReceived(ChatMessage message) {}
+
+          @Override
+          public void onMessageSent(ChatMessage message) {}
+
+          @Override
+          public void onSystemMessage(String message) {
+            SwingUtilities.invokeLater(() -> updateErrorBanner(message));
+          }
+        });
 
     JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, chatPanel, usersListPanel);
     splitPane.setDividerLocation(500);
@@ -137,18 +156,29 @@ public class MainFrame extends JFrame {
   }
 
   private void initStatusBar() {
-    JPanel statusBar = new JPanel(new BorderLayout(5, 0));
-    statusBar.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
+    JPanel bottomPanel = new JPanel(new BorderLayout(5, 0));
+    bottomPanel.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
+
+    errorLabel = new JLabel(" ");
+    errorLabel.setOpaque(true);
+    errorLabel.setVisible(false);
+    errorLabel.setForeground(new Color(183, 28, 28));
+    errorLabel.setBackground(new Color(255, 235, 238));
+    errorLabel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
 
     statusLabel = new JLabel("Desconectado");
     statusLabel.setForeground(Color.RED);
 
     groupInfoLabel = new JLabel("Grupo: " + config.getMulticastGroup() + ":" + config.getPort());
 
+    JPanel statusBar = new JPanel(new BorderLayout(5, 0));
     statusBar.add(statusLabel, BorderLayout.WEST);
     statusBar.add(groupInfoLabel, BorderLayout.EAST);
 
-    add(statusBar, BorderLayout.SOUTH);
+    bottomPanel.add(errorLabel, BorderLayout.NORTH);
+    bottomPanel.add(statusBar, BorderLayout.SOUTH);
+
+    add(bottomPanel, BorderLayout.SOUTH);
   }
 
   private void loadConfig() {
@@ -197,6 +227,10 @@ public class MainFrame extends JFrame {
   }
 
   private void connect() {
+    if (connected || controller.isConnected()) {
+      return;
+    }
+
     if (!config.validate()) {
       JOptionPane.showMessageDialog(
           this,
@@ -208,20 +242,12 @@ public class MainFrame extends JFrame {
     }
 
     try {
-      UDPNetworkManager.getInstance().createSocket(config.getPort(), config.getMulticastGroup());
-
-      chatSession =
-          new ChatSession(
-              config.getUsername(), config.getMulticastGroup(), config.getPort(), config.getTtl());
-
-      chatSession.join();
-
-      connected = true;
-      updateConnectionState(true);
-
-      startReceiverThread();
-
+      controller.connect();
+      connected = controller.isConnected();
+      updateConnectionState(connected);
     } catch (Exception e) {
+      connected = false;
+      updateConnectionState(false);
       JOptionPane.showMessageDialog(
           this,
           "Falha ao conectar: " + e.getMessage(),
@@ -231,79 +257,16 @@ public class MainFrame extends JFrame {
     }
   }
 
-  private void startReceiverThread() {
-    Thread receiverThread =
-        new Thread(
-            () -> {
-              try {
-                var networkManager = UDPNetworkManager.getInstance();
-                var socket = networkManager.getSocket();
-                var multicastGroup = networkManager.getMulticastGroup();
-
-                byte[] buffer = new byte[65536];
-                var packet = new java.net.DatagramPacket(buffer, buffer.length);
-
-                while (connected && socket != null && !socket.isClosed()) {
-                  try {
-                    socket.receive(packet);
-                    String json =
-                        new String(
-                            packet.getData(),
-                            0,
-                            packet.getLength(),
-                            java.nio.charset.StandardCharsets.UTF_8);
-
-                    chat.network.ProtocolHandler handler = new chat.network.ProtocolHandler();
-                    handler.process(packet);
-
-                    var message = chat.util.JsonUtils.fromJson(json);
-                    if (message != null) {
-                      SwingUtilities.invokeLater(() -> chatPanel.appendMessage(message));
-                    }
-                  } catch (java.net.SocketTimeoutException e) {
-                  } catch (Exception e) {
-                    if (connected) {
-                      Logger.debug("Receiver error: " + e.getMessage());
-                    }
-                  }
-                }
-              } catch (Exception e) {
-                Logger.debug("Receiver thread error: " + e.getMessage());
-              }
-            },
-            "MessageReceiver");
-    receiverThread.setDaemon(true);
-    receiverThread.start();
-  }
-
   private void sendMessage() {
     String text = chatPanel.getInputText().trim();
-    if (!text.isEmpty() && connected && chatSession != null) {
-      try {
-        chatSession.send(text);
-        chatPanel.clearInput();
-      } catch (Exception e) {
-        Logger.error("Failed to send message: " + e.getMessage());
-      }
+    if (!text.isEmpty() && connected) {
+      controller.sendMessage(text);
+      chatPanel.clearInput();
     }
   }
 
   private void disconnect() {
-    if (chatSession != null) {
-      try {
-        chatSession.leave();
-      } catch (Exception e) {
-        Logger.debug("Error during disconnect: " + e.getMessage());
-      }
-      chatSession = null;
-    }
-
-    try {
-      UDPNetworkManager.getInstance().shutdown();
-    } catch (Exception e) {
-      Logger.debug("Error shutting down network: " + e.getMessage());
-    }
-
+    controller.disconnect();
     connected = false;
     updateConnectionState(false);
   }
@@ -321,6 +284,36 @@ public class MainFrame extends JFrame {
       statusLabel.setForeground(Color.RED);
       usersListPanel.clear();
     }
+  }
+
+  private void updateErrorBanner(String message) {
+    if (message == null || message.trim().isEmpty()) {
+      clearErrorBanner();
+      return;
+    }
+
+    String normalized = message.toLowerCase(Locale.ROOT);
+    boolean isError =
+        normalized.startsWith("erro")
+            || normalized.contains("falha")
+            || normalized.contains("nao conectado")
+            || normalized.contains("não conectado");
+
+    if (isError) {
+      errorLabel.setText(message);
+      errorLabel.setVisible(true);
+      errorLabel.revalidate();
+      errorLabel.repaint();
+    } else if (normalized.startsWith("conectado") || normalized.startsWith("desconectado")) {
+      clearErrorBanner();
+    }
+  }
+
+  private void clearErrorBanner() {
+    errorLabel.setText(" ");
+    errorLabel.setVisible(false);
+    errorLabel.revalidate();
+    errorLabel.repaint();
   }
 
   private void updateGroupInfo() {
@@ -344,6 +337,7 @@ public class MainFrame extends JFrame {
     }
 
     saveWindowState();
+    controller.shutdown();
     System.exit(0);
   }
 

@@ -154,4 +154,8 @@ public class ChatSession {
   public LinkedBlockingDeque<ChatMessage> getOutboundMessages() {
     return outboundMessages;
   }
+
+  public MulticastSender getSender() {
+    return sender;
+  }
 }

@@ -7,7 +7,9 @@ import chat.model.MessageType;
 import chat.model.Peer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +52,54 @@ class PeerDiscoveryTest {
     assertNotNull(peer);
     assertEquals("peer1", peer.getUsername());
     assertTrue(peer.isActive());
+  }
+
+  @Test
+  void testListenerReceivesRealtimePeerUpdates() throws UnknownHostException {
+    List<String> events = new ArrayList<>();
+    peerDiscovery.setListener(
+        new PeerDiscoveryListener() {
+          @Override
+          public void onPeerJoined(Peer peer) {
+            events.add("join:" + peer.getUsername());
+          }
+
+          @Override
+          public void onPeerLeft(Peer peer) {
+            events.add("left:" + peer.getUsername());
+          }
+
+          @Override
+          public void onPeerUpdated(Peer peer) {
+            events.add("update:" + peer.getUsername());
+          }
+
+          @Override
+          public void onPeerListChanged(List<Peer> peers) {
+            events.add("list:" + peers.size());
+          }
+        });
+
+    InetAddress address = InetAddress.getByName("192.168.1.100");
+    ChatMessage joinMessage = new ChatMessage("peer1", "joining", MessageType.JOIN);
+    joinMessage.setAddress(address);
+    joinMessage.setPort(5000);
+
+    peerDiscovery.handleJoinMessage(joinMessage);
+
+    ChatMessage pongMessage = new ChatMessage("peer1", "pong", MessageType.PONG);
+    pongMessage.setAddress(address);
+    pongMessage.setPort(5000);
+    peerDiscovery.handlePongMessage(pongMessage);
+
+    ChatMessage leaveMessage = new ChatMessage("peer1", "leaving", MessageType.LEAVE);
+    leaveMessage.setAddress(address);
+    leaveMessage.setPort(5000);
+    peerDiscovery.handleLeaveMessage(leaveMessage);
+
+    assertTrue(events.contains("join:peer1"));
+    assertTrue(events.contains("update:peer1"));
+    assertTrue(events.contains("left:peer1"));
   }
 
   @Test

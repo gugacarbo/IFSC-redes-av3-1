@@ -6,7 +6,9 @@ import chat.model.MessageType;
 import chat.model.Peer;
 import chat.util.Logger;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,6 +24,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
   private final ScheduledExecutorService scheduler;
   private final String username;
   private MulticastSender sender;
+  private volatile PeerDiscoveryListener listener;
   private volatile boolean running;
 
   public PeerDiscoveryImpl(String username) {
@@ -33,6 +36,10 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
 
   public void setSender(MulticastSender sender) {
     this.sender = sender;
+  }
+
+  public void setListener(PeerDiscoveryListener listener) {
+    this.listener = listener;
   }
 
   public void start() {
@@ -79,19 +86,24 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
 
   private void checkPeerTimeouts() {
     long now = System.currentTimeMillis();
-    peers
-        .values()
-        .removeIf(
-            peer -> {
-              if (!peer.getUsername().equals(username)) {
-                boolean timedOut = (now - peer.getLastSeen()) > PEER_TIMEOUT_MS;
-                if (timedOut) {
-                  Logger.info("Peer timed out: " + peer.getUsername());
-                }
-                return timedOut;
-              }
-              return false;
-            });
+    List<Peer> removedPeers = new ArrayList<>();
+    peers.forEach(
+        (uniqueId, peer) -> {
+          if (!peer.getUsername().equals(username)) {
+            boolean timedOut = (now - peer.getLastSeen()) > PEER_TIMEOUT_MS;
+            if (timedOut && peers.remove(uniqueId, peer)) {
+              removedPeers.add(peer);
+              Logger.info("Peer timed out: " + peer.getUsername());
+            }
+          }
+        });
+
+    if (!removedPeers.isEmpty()) {
+      for (Peer peer : removedPeers) {
+        notifyPeerLeft(peer);
+      }
+      notifyPeerListChanged();
+    }
   }
 
   @Override
@@ -136,9 +148,11 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
       peer = new Peer(peerUsername, address, port);
       peers.put(uniqueId, peer);
       Logger.info("Peer joined: " + peerUsername);
+      notifyPeerJoined(peer);
     } else {
       peer.setLastSeen(System.currentTimeMillis());
       peer.setActive(true);
+      notifyPeerUpdated(peer);
     }
   }
 
@@ -147,6 +161,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
     Peer removed = peers.remove(uniqueId);
     if (removed != null) {
       Logger.info("Peer left: " + peerUsername);
+      notifyPeerLeft(removed);
     }
   }
 
@@ -156,6 +171,31 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
     if (peer != null) {
       peer.setLastSeen(System.currentTimeMillis());
       peer.setActive(true);
+      notifyPeerUpdated(peer);
+    }
+  }
+
+  private void notifyPeerJoined(Peer peer) {
+    if (listener != null) {
+      listener.onPeerJoined(peer);
+    }
+  }
+
+  private void notifyPeerLeft(Peer peer) {
+    if (listener != null) {
+      listener.onPeerLeft(peer);
+    }
+  }
+
+  private void notifyPeerUpdated(Peer peer) {
+    if (listener != null) {
+      listener.onPeerUpdated(peer);
+    }
+  }
+
+  private void notifyPeerListChanged() {
+    if (listener != null) {
+      listener.onPeerListChanged(List.copyOf(peers.values()));
     }
   }
 
@@ -189,6 +229,7 @@ public class PeerDiscoveryImpl implements PeerDiscovery {
       Thread.currentThread().interrupt();
     }
     peers.clear();
+    notifyPeerListChanged();
   }
 
   public boolean isRunning() {
